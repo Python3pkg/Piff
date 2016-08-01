@@ -540,6 +540,12 @@ class InputFiles(Input):
                 logger.info("Removing objects with use (col %s) == 0",self.use_col)
             self.cats = [ cat[cat[self.use_col]!=0] for cat in self.cats ]
 
+        # TEMPORARY. Purge on x_col and y_col edges
+        self.cats = [ cat[cat[self.x_col] + self.stamp_size * 0.5 + 1 < 2048 - 150] for cat in self.cats ]
+        self.cats = [ cat[cat[self.x_col] - self.stamp_size * 0.5 - 1 > 0 + 150] for cat in self.cats ]
+        self.cats = [ cat[cat[self.y_col] + self.stamp_size * 0.5 + 1 < 4096 - 150] for cat in self.cats ]
+        self.cats = [ cat[cat[self.y_col] - self.stamp_size * 0.5 - 1 > 0 + 150] for cat in self.cats ]
+
     def setPointing(self, logger=None):
         """Set the pointing attribute based on the input ra, dec (given in the initializer)
 
