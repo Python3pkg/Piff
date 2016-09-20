@@ -183,10 +183,10 @@ def test_decam_wavefront():
     knn = piff.des.DECamWavefront(file_name, extname)
 
     n_samples = 2000
-    ccdnums = np.random.randint(1, 63, n_samples)
+    chipnums = np.random.randint(1, 63, n_samples)
 
     star_list = []
-    for ccdnum in ccdnums:
+    for chipnum in chipnums:
         # make some basic images, pass Xi as properties
         # Draw the PSF onto an image.  Let's go ahead and give it a non-trivial WCS.
         wcs = galsim.JacobianWCS(0.26, 0.05, -0.08, -0.29)
@@ -197,7 +197,7 @@ def test_decam_wavefront():
         image.setCenter(icen, jcen)
         image_pos = image.center()
 
-        stardata = piff.StarData(image, image_pos, properties={'ccdnum': ccdnum})
+        stardata = piff.StarData(image, image_pos, properties={'chipnum': chipnum})
 
         star = piff.Star(stardata, None)
         star_list.append(star)

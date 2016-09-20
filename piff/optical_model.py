@@ -20,7 +20,6 @@
 from __future__ import print_function
 
 import galsim
-import fitsio
 import numpy as np
 
 from .model import Model
@@ -125,6 +124,10 @@ class Optical(Model):
                     logger.debug('Loading pupil_plane_im from {0}'.format(pupil_plane_im))
                 pupil_plane_im = galsim.fits.read(pupil_plane_im)
             self.optical_psf_kwargs['pupil_plane_im'] = pupil_plane_im
+            # also need to cut several kwargs from optical_psf_kwargs if we have pupil_plane_im
+            manual_optical_keys = ('circular_pupil', 'nstruts', 'strut_thick', 'strut_angle')
+            for key in manual_optical_keys:
+                self.optical_psf_kwargs.pop(key, None)
 
         kolmogorov_keys = ('lam', 'r0', 'lam_over_r0', 'scale_unit',
                            'fwhm', 'half_light_radius', 'r0_500')
@@ -227,7 +230,18 @@ class Optical(Model):
         center = galsim.PositionD(*star.fit.center)
         offset = star.data.image_pos + center - star.data.image.trueCenter()
         image = prof.drawImage(star.data.image.copy(), method='no_pixel', offset=offset)
-        data = StarData(image, star.data.image_pos, star.data.weight)
+        # TODO: might need to update image pos?
+        properties = star.data.properties.copy()
+        for key in ['x', 'y', 'u', 'v']:
+            # Get rid of keys that constructor doesn't want to see:
+            properties.pop(key,None)
+        data = StarData(image=image,
+                        image_pos=star.data.image_pos,
+                        weight=star.data.weight,
+                        pointing=star.data.pointing,
+                        field_pos=star.data.field_pos,
+                        values_are_sb=star.data.values_are_sb,
+                        properties=properties)
         return Star(data, star.fit)
 
 
