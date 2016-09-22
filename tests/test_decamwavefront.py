@@ -21,11 +21,11 @@ def test_init():
     load_decamwavefrontpsf()
 
 def test_fit():
-    params = {'r0': 0.2, 'g1': 0.01, 'g2': -0.02,
+    params = {'r0': 0.2,
               'z04d': 0.2,
               'z05d': -0.5,
               }
-    n_samples = 100
+    n_samples = 500
     psf = load_decamwavefrontpsf()
     stars, wf = generate_sample(params, n_samples)
 
@@ -89,7 +89,7 @@ def load_decamwavefrontpsf():
     # psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, pupil_plane_im)
     # obscuration slows things down tremendously. We are not particularly interested
     # in fidelity for these tests, so set that to 0
-    psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, model_kwargs={'obscuration':0})
+    psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, model_kwargs={'obscuration':0}, verbose=True)
 
     return psf
 

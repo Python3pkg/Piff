@@ -32,6 +32,8 @@ from ..optical_model import Optical
 from .decam_wavefront import DECamWavefront
 from .decaminfo import DECamInfo
 
+from time import time
+
 class DECamWavefrontPSF(PSF):
     """A PSF class that uses the decam wavefront to model the PSF
 
@@ -41,7 +43,7 @@ class DECamWavefrontPSF(PSF):
         Constant optical sigma or kolmogorov, g1, g2 in model
         misalignments in interpolant: these are the interp.misalignment terms
     """
-    def __init__(self, knn_file_name, knn_extname, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.5, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}):
+    def __init__(self, knn_file_name, knn_extname, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.5, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}, verbose=False):
         """
 
 
@@ -73,6 +75,7 @@ class DECamWavefrontPSF(PSF):
             'knn_file_name': knn_file_name,
             'knn_extname': knn_extname,
             'minuit': minuit_kwargs,
+            'verbose': verbose
             }
 
         # put in the variable names and initial values
@@ -80,7 +83,7 @@ class DECamWavefrontPSF(PSF):
         self.minuit_kwargs = {
             'throw_nan': False,
             'pedantic': True,
-            'print_level': 2,
+            'print_level': int(self.kwargs['verbose']),
             'errordef': 1,
 
             'r0': 0.1, 'fix_r0': False, 'limit_r0': (0.08, 0.25), 'error_r0': 1e-2,
@@ -115,6 +118,8 @@ class DECamWavefrontPSF(PSF):
         self.minuit_kwargs.update(self.kwargs['minuit'])
         self.update_psf_params(**self.minuit_kwargs)
 
+        self._time = time()
+
 
     def fit(self, stars, wcs, pointing,
             chisq_threshold=0.1, max_iterations=300, skip_fit=False, logger=None):
@@ -137,6 +142,8 @@ class DECamWavefrontPSF(PSF):
         self.stars = stars
         self.wcs = wcs
         self.pointing = pointing
+
+        self._n_iter = 0
 
         # get the moments of the stars for comparison
         self._stars = [self.model_comparer.fit(star) for star in stars]
@@ -212,9 +219,26 @@ class DECamWavefrontPSF(PSF):
 
         # calculate chisq
         # TODO: are there any errors from the shape measurements I could put in?
-        chi2 = np.sum(self.weights * np.square(shapes - self._shapes))
+        chi2 = np.sum(np.square(shapes - self._shapes), axis=0)
         dof = shapes.size
-        return chi2 / dof
+        if self._n_iter % 10 == 0 and self.kwargs['verbose']:
+            print('\n',
+                    '***************************************',
+                    'time\t {0:.3e}\n'.format(time() - self._time),
+                    'size\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(r0, g1, g2),
+                    'z4\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z04d, z04x, z04y),
+                    'z5\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z05d, z05x, z05y),
+                    'z6\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z06d, z06x, z06y),
+                    'z7\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z07d, z07x, z07y),
+                    'z8\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z08d, z08x, z08y),
+                    'z9\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z09d, z09x, z09y),
+                    'z10\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z10d, z10x, z10y),
+                    'z11\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z11d, z11x, z11y),
+                    'chi2\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(*(chi2 / dof)),
+                    '***************************************',
+                    )
+        self._n_iter += 1
+        return np.sum(self.weights * chi2) / dof
 
     def drawStar(self, star):
         """Generate PSF image for a given star.
