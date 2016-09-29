@@ -21,14 +21,15 @@ def test_init():
     load_decamwavefrontpsf()
 
 def test_fit():
+    # fit only a couple parameters
     params = {'r0': 0.2,
-              'z04d': 0.2,
-              'z05d': -0.5,
+              'z05d': 0.2,
               }
-    n_samples = 500
+    n_samples = 50
     psf = load_decamwavefrontpsf()
     stars, wf = generate_sample(params, n_samples)
 
+    # speed things up by fixing the other keys
     for key in psf.minuit_kwargs:
         if 'fix' in key:
             if key.split('fix_')[-1] in params.keys():
@@ -38,7 +39,10 @@ def test_fit():
 
     psf.fit(stars, None, None)
 
-    return psf, stars, wf
+    # check fit
+    import ipdb; ipdb.set_trace()
+
+    return
 
 def test_full_fit():
     pass
@@ -67,7 +71,8 @@ def generate_sample(params={}, n_samples=5000):
         u = xpos / decaminfo.mmperpixel * arcsecperpixel
         v = ypos / decaminfo.mmperpixel * arcsecperpixel
 
-        star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, scale=arcsecperpixel)
+        # we make the star smaller to speed things up
+        star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, stamp_size=24, scale=arcsecperpixel)
         stars.append(star)
 
     # get the focal positions
@@ -88,7 +93,7 @@ def load_decamwavefrontpsf():
     # pupil_plane_im = 'optics_test/DECam_pupil_512.fits'
     # psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, pupil_plane_im)
     # obscuration slows things down tremendously. We are not particularly interested
-    # in fidelity for these tests, so set that to 0
+    # in fidelity to DECam (vs fidelity to the code) for these tests, so set that to 0
     psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, model_kwargs={'obscuration':0}, verbose=True)
 
     return psf
