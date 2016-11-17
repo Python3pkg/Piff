@@ -45,7 +45,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # The version is stored in _version.py as recommended here:
 # http://stackoverflow.com/questions/458550/standard-way-to-embed-version-into-python-package
-from _version import __version__, __version_info__
+from ._version import __version__, __version_info__
 
 # Also let piff.version show the version.
 version = __version__
@@ -101,6 +101,7 @@ from .singlechip import SingleChipPSF
 
 # Stats classes are named BlahStats where Blah is what they are called in the config file
 from .stats import Stats, RhoStats, ShapeHistogramsStats
+from .twod_stats import TwoDHistStats, WhiskerStats
 
 # Optics
 from .optical_model import Optical, optical_templates
