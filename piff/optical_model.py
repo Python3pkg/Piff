@@ -36,10 +36,15 @@ optical_templates = {
              'strut_angle': 45 * galsim.degrees,
              'r0': 0.1,
            },
+    'lsst': { 'obscuration': 0.61,
+             'diam': 8.36,
+             'lam': 700, # nm
+             'r0': 0.1,
+           },
 }
 
 class Optical(Model):
-    def __init__(self, template=None, logger=None, **kwargs):
+    def __init__(self, template=None, logger=None, gsparams=None, **kwargs):
         """Initialize the Optical Model
 
         There are potentially three components to this model that are convolved together.
@@ -91,6 +96,9 @@ class Optical(Model):
         lambda=1000 nm (the default is 700), you could do:
 
                 >>> model = piff.OpticalModel(template='des', lam=1000)
+
+        :param gsparams:        Galsim GSParams object
+
         """
         # If pupil_angle and strut angle are provided as strings, eval them.
         for key in ['pupil_angle', 'strut_angle']:
@@ -119,10 +127,10 @@ class Optical(Model):
         # Deal with the pupil plane image now so it only needs to be loaded from disk once.
         if 'pupil_plane_im' in kwargs:
             pupil_plane_im = kwargs.pop('pupil_plane_im')
-            if isinstance(pupil_plane_im, str):
-                if logger:
-                    logger.debug('Loading pupil_plane_im from {0}'.format(pupil_plane_im))
-                pupil_plane_im = galsim.fits.read(pupil_plane_im)
+            # if isinstance(pupil_plane_im, str):
+            #     if logger:
+            #         logger.debug('Loading pupil_plane_im from {0}'.format(pupil_plane_im))
+            #     pupil_plane_im = galsim.fits.read(pupil_plane_im)
             self.optical_psf_kwargs['pupil_plane_im'] = pupil_plane_im
             # also need to cut several kwargs from optical_psf_kwargs if we have pupil_plane_im
             manual_optical_keys = ('circular_pupil', 'nstruts', 'strut_thick', 'strut_angle')
@@ -161,6 +169,9 @@ class Optical(Model):
             if key in self.kwargs:
                 self.kwargs[key] = repr(self.kwargs[key])
 
+        # save gsparams
+        self.gsparams = gsparams
+
     def fit(self, star):
         """Warning: This method just updates the fit with the chisq and dof!
 
@@ -191,11 +202,11 @@ class Optical(Model):
         prof = []
         # gaussian
         if self.sigma is not None:
-            gaussian = galsim.Gaussian(sigma=self.sigma)
+            gaussian = galsim.Gaussian(sigma=self.sigma, gsparams=self.gsparams)
             prof.append(gaussian)
         # atmosphere
         if len(self.kolmogorov_kwargs) > 0:
-            atm = galsim.Kolmogorov(**self.kolmogorov_kwargs)
+            atm = galsim.Kolmogorov(gsparams=self.gsparams, **self.kolmogorov_kwargs)
             prof.append(atm)
         # optics
         if len(params) == 0:
@@ -203,7 +214,7 @@ class Optical(Model):
             pass
         else:
             aberrations = [0,0,0,0] + list(params)
-            optics = galsim.OpticalPSF(aberrations=aberrations, **self.optical_psf_kwargs)
+            optics = galsim.OpticalPSF(aberrations=aberrations, gsparams=self.gsparams, **self.optical_psf_kwargs)
             prof.append(optics)
             # convolve together
 

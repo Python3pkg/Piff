@@ -21,6 +21,8 @@ from __future__ import print_function
 import numpy as np
 import fitsio
 
+import galsim
+
 from ..star import Star, StarFit, StarData
 from ..model import Model
 from ..interp import Interp
@@ -31,6 +33,8 @@ from ..gaussian_model import Gaussian
 from ..optical_model import Optical
 from .decam_wavefront import DECamWavefront
 from .decaminfo import DECamInfo
+
+from .donutengine_model import DonutEngine
 
 from time import time
 
@@ -43,7 +47,7 @@ class DECamWavefrontPSF(PSF):
         Constant optical sigma or kolmogorov, g1, g2 in model
         misalignments in interpolant: these are the interp.misalignment terms
     """
-    def __init__(self, knn_file_name, knn_extname, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.5, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}, verbose=False):
+    def __init__(self, knn_file_name, knn_extname, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.5, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}, verbose=False, engine='galsim', template='des'):
         """
 
 
@@ -55,8 +59,12 @@ class DECamWavefrontPSF(PSF):
                                             [default: [0.5, 1, 1], so downweight size]
         :param minuit_kwargs:               kwargs to pass to minuit
         """
-        self.interp = DECamWavefront(knn_file_name, knn_extname, **interp_kwargs)
-        self.model = Optical(template='des', pupil_plane_im=pupil_plane_im, **model_kwargs)
+
+        self.interp_kwargs = {'n_neighbors': 15, 'algorithm': 'auto'}
+        self.interp_kwargs.update(interp_kwargs)
+
+        # it turns out this part can also be slow!
+        self.interp = DECamWavefront(knn_file_name, knn_extname, **self.interp_kwargs)
         self.model_comparer = Gaussian()
 
         self.decaminfo = DECamInfo()
@@ -75,8 +83,16 @@ class DECamWavefrontPSF(PSF):
             'knn_file_name': knn_file_name,
             'knn_extname': knn_extname,
             'minuit': minuit_kwargs,
-            'verbose': verbose
+            'verbose': verbose,
             }
+
+        # load up the model after kwargs are set
+        # donutengine ends up not being much faster in this framework :(
+        self._engines = ['donutlib', 'galsim', 'galsim_fast', 'donutlib_fast']
+        # ORDER CORRESPONDS TO iTelescope FOR DONUTLIB!
+        self._templates = ['des', 'MosaicII', 'lsst']
+        self._model(template=template, engine=engine, **model_kwargs)
+
 
         # put in the variable names and initial values
         # TODO: This should be called from function
@@ -116,10 +132,81 @@ class DECamWavefrontPSF(PSF):
                               }
 
         self.minuit_kwargs.update(self.kwargs['minuit'])
+
         self.update_psf_params(**self.minuit_kwargs)
 
         self._time = time()
 
+    def _model(self, template='des', engine='fast', **model_kwargs):
+        if engine == 'galsim_fast':
+            # pass in gsparams object to speed up everything
+            gsparams = galsim.GSParams(minimum_fft_size=128,  # 128
+                                       maximum_fft_size=4096,  # 4096
+                                       stepk_minimum_hlr=5,  # 5
+                                       folding_threshold=5e-3,  # 5e-3
+                                       maxk_threshold=1e-3,  # 1e-3
+                                       kvalue_accuracy=1e-5,  # 1e-5
+                                       xvalue_accuracy=1e-5,  # 1e-5
+                                       table_spacing=1.,  # 1
+                                       )
+            # padfactor?
+            pad_factor = 0.5
+            oversampling = 0.5
+            self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
+        elif engine == 'donutlib_fast':
+            makedonut_dict = {'nbin': 192,  # 256
+                              'nPixels': 24,  # 32
+                              'pixelOverSample': 8,  # 8
+                              'scaleFactor': 1,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'donutlib_fast_scalefactor':
+            makedonut_dict = {'nbin': 96,  # 256
+                              'nPixels': 24,  # 32
+                              'pixelOverSample': 4,  # 8
+                              'scaleFactor': 2,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'donutlib':
+            makedonut_dict = {'nbin': 384,  # 256
+                              'nPixels': 24,  # 32
+                              'pixelOverSample': 16,  # 8
+                              'scaleFactor': 1,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'donutlib_scalefactor':
+            makedonut_dict = {'nbin': 384,  # 256
+                              'nPixels': 24,  # 32
+                              'pixelOverSample': 16,  # 8
+                              'scaleFactor': 2,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'galsim':
+            # default gsparams
+            gsparams = galsim.GSParams(minimum_fft_size=128,  # 128
+                                       maximum_fft_size=4096,  # 4096
+                                       stepk_minimum_hlr=5,  # 5
+                                       folding_threshold=5e-3,  # 5e-3
+                                       maxk_threshold=1e-3,  # 1e-3
+                                       kvalue_accuracy=1e-5,  # 1e-5
+                                       xvalue_accuracy=1e-5,  # 1e-5
+                                       table_spacing=1.,  # 1
+                                       )
+            self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, **model_kwargs)
+        else:
+            raise Exception('Invalid engine! {0}'.format(engine))
 
     def fit(self, stars, wcs, pointing,
             chisq_threshold=0.1, max_iterations=300, skip_fit=False, logger=None):
@@ -148,6 +235,7 @@ class DECamWavefrontPSF(PSF):
         # get the moments of the stars for comparison
         self._stars = [self.model_comparer.fit(star) for star in stars]
         self._shapes = np.array([star.fit.params for star in self._stars])
+        self._shapes[:,1:] = self._shapes[:,0][:, None] * self._shapes[:,1:]
 
         self._minuit = Minuit(self._fit_func, **self.minuit_kwargs)
         # run the fit and solve! This will update the interior parameters
@@ -215,16 +303,17 @@ class DECamWavefrontPSF(PSF):
                                z11d, z11x, z11y,)
 
         # get shapes
-        shapes = np.array([self.model_comparer.fit(self.drawStar(star)).fit.params for star in self._stars])
+        shapes = np.array([self.model_comparer.fit(star).fit.params for star in self.drawStarList(self._stars)])
+        shapes[:, 1:] = shapes[:,0][:, None] * shapes[:, 1:]
 
         # calculate chisq
         # TODO: are there any errors from the shape measurements I could put in?
-        chi2 = np.sum(np.square(shapes - self._shapes), axis=0)
+        chi2 = np.mean(np.square(shapes - self._shapes), axis=0)
         dof = shapes.size
         if self._n_iter % 10 == 0 and self.kwargs['verbose']:
             print('\n',
-                    '***************************************',
-                    'time\t {0:.3e}\n'.format(time() - self._time),
+                    '***************************************\n',
+                    'time\t {0:.3e}\t ncalls \t {1}\n'.format(time() - self._time, self._n_iter),
                     'size\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(r0, g1, g2),
                     'z4\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z04d, z04x, z04y),
                     'z5\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z05d, z05x, z05y),
@@ -238,7 +327,24 @@ class DECamWavefrontPSF(PSF):
                     '***************************************',
                     )
         self._n_iter += 1
-        return np.sum(self.weights * chi2) / dof
+        return np.sum(self.weights * chi2) * 1. / dof / np.sum(self.weights)
+
+    def drawStarList(self, stars):
+        """Generate PSF images for given stars.
+
+        :param stars:       List of Star instances holding information needed for interpolation as
+                            well as an image/WCS into which PSF will be rendered.
+
+        :returns:           List of Star instances with its image filled with rendered PSF
+        """
+        # put in the focal coordinates
+        stars = self.decaminfo.pixel_to_focalList(stars)
+        # Interpolate parameters to this position/properties:
+        stars = self.interp.interpolateList(stars)
+        # Render the image
+        stars = [self.model.draw(star) for star in stars]
+
+        return stars
 
     def drawStar(self, star):
         """Generate PSF image for a given star.
@@ -253,4 +359,5 @@ class DECamWavefrontPSF(PSF):
         # Interpolate parameters to this position/properties:
         star = self.interp.interpolate(star)
         # Render the image
-        return self.model.draw(star)
+        star = self.model.draw(star)
+        return star
