@@ -183,11 +183,31 @@ class DECamWavefrontPSF(PSF):
                               'nZernikeTerms': 11,
                               }
             self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'donutlib_again':
+            makedonut_dict = {'nbin': 384,  # 256
+                              'nPixels': 24,  # 32
+                              'pixelOverSample': 16,  # 8
+                              'scaleFactor': 1,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
         elif engine == 'donutlib_scalefactor':
             makedonut_dict = {'nbin': 384,  # 256
                               'nPixels': 24,  # 32
                               'pixelOverSample': 16,  # 8
                               'scaleFactor': 2,  # 1
+                              'randomFlag': False,
+                              'iTelescope': self._templates.index(template),
+                              'nZernikeTerms': 11,
+                              }
+            self.model = DonutEngine(**makedonut_dict)
+        elif engine == 'donutlib_old':
+            makedonut_dict = {'nbin': 256,  # 256
+                              'nPixels': 32,  # 32
+                              'pixelOverSample': 8,  # 8
+                              'scaleFactor': 1,  # 1
                               'randomFlag': False,
                               'iTelescope': self._templates.index(template),
                               'nZernikeTerms': 11,

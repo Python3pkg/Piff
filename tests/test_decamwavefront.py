@@ -63,7 +63,9 @@ def test_disk():
 def test_yaml():
     pass
 
-def generate_sample(params={}, n_samples=5000, engine='donutlib'):
+def generate_sample(params={}, n_samples=5000, engine='donutlib', seed=12345):
+
+    np.random.seed(seed)
     chipnums = np.random.randint(1, 63, n_samples)
     icens = np.random.randint(1, 2048, n_samples)
     jcens = np.random.randint(1, 4096, n_samples)
@@ -80,6 +82,8 @@ def generate_sample(params={}, n_samples=5000, engine='donutlib'):
         # convert from mm to uv
         u = xpos / decaminfo.mmperpixel * arcsecperpixel
         v = ypos / decaminfo.mmperpixel * arcsecperpixel
+
+        # print(icen, jcen, u, v, chipnum)
 
         # we make the star smaller to speed things up
         star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, stamp_size=24, scale=arcsecperpixel)
@@ -154,7 +158,7 @@ def test_optical_engines():
     n_samples = 50
 
     shapes = {}
-    engines = ['donutlib', 'donutlib_fast', 'donutlib_fast_scalefactor', 'donutlib_scalefactor', 'galsim_fast', 'galsim']
+    engines = ['donutlib', 'donutlib_again', 'donutlib_fast', 'donutlib_fast_scalefactor', 'donutlib_scalefactor', 'donutlib_old', 'galsim_fast', 'galsim']
     templates = ['des', 'lsst']
     import matplotlib.pyplot as plt
     for template in templates:
@@ -186,7 +190,6 @@ def test_optical_engines():
                 ax_row += 1
         plt.tight_layout()
         fig.savefig('{0}.pdf'.format(template))
-    plt.show()
     import ipdb; ipdb.set_trace()
 
 def test_chisq():
