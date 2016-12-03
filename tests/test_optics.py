@@ -60,7 +60,7 @@ def test_pupil_im(pupil_plane_im='optics_test/DECam_pupil_128.fits'):
 def test_kolmogorov():
     print('test kolmogorov')
     # make sure if we put in different kolmogorov things that things change
-    star = make_empty_star(params=[])
+    star = make_empty_star()
 
     model = piff.Optical(r0=0.1, template='des')
     star = model.draw(star)
@@ -74,20 +74,20 @@ def test_kolmogorov():
 def test_shearing():
     print('test shearing')
     # make sure if we put in common mode ellipticities that things change
-    star = make_empty_star(params=[])
+    star = make_empty_star()
     g1 = 0
     g2 = 0.05
     model = piff.Optical(r0=0.1, g1=g1, g2=g2, template='des')
     star = model.draw(star)
-    gaussian = piff.Gaussian()
+    gaussian = piff.Gaussian(include_pixel=False)
     star_gaussian = gaussian.fit(star)
     np.testing.assert_almost_equal(star_gaussian.fit.params[1], g1, 5)
     np.testing.assert_almost_equal(star_gaussian.fit.params[2], g2, 5)
 
 def test_gaussian():
-    gaussian = piff.Gaussian()
+    gaussian = piff.Gaussian(include_pixel=False)
     print('test gaussian')
-    star = make_empty_star(params=[])
+    star = make_empty_star()
     # test gaussian alone
     sigma = 1
     g1 = -0.1
@@ -123,8 +123,6 @@ def test_disk():
         model.write(f, 'optics')
         model2 = piff.Optical.read(f, 'optics')
 
-    print('model.kwargs = ',model.kwargs)
-    print('model2.kwargs = ',model2.kwargs)
     for key in model.kwargs:
         assert key in model2.kwargs, 'key %r missing from model2 kwargs'%key
         assert model.kwargs[key] == model2.kwargs[key], 'key %r mismatch'%key
@@ -167,7 +165,7 @@ def make_empty_star(icen=500, jcen=700, chipnum=28, params=None,
     star = piff.Star.makeTarget(x=icen, y=jcen, properties=properties,
                                 scale=0.263)
 
-    if np.shape(params) == ():
+    if params is None:
         starfit = None
     else:
         starfit = piff.StarFit(params, **fit_kwargs)

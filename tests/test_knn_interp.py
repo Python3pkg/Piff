@@ -21,10 +21,10 @@ import subprocess
 import yaml
 import fitsio
 
-from test_helper import get_script_name
+from piff_test_helper import get_script_name
 
 attr_interp = ['focal_x', 'focal_y']
-attr_target = range(5)
+attr_target = list(range(5))
 
 def generate_data(n_samples=100):
     # generate as Norm(0, 1) for all parameters
@@ -37,7 +37,7 @@ def generate_data(n_samples=100):
         # Draw the PSF onto an image.  Let's go ahead and give it a non-trivial WCS.
         wcs = galsim.JacobianWCS(0.26, 0.05, -0.08, -0.29)
         image = galsim.Image(64,64, wcs=wcs)
-        properties = {attr_interp[ith]: Xi[ith] for ith in xrange(len(attr_interp))}
+        properties = {attr_interp[ith]: Xi[ith] for ith in range(len(attr_interp))}
         stardata = piff.StarData(image, image.trueCenter(), properties=properties)
 
         params = np.array([yi[ith] for ith in attr_target])
@@ -138,7 +138,9 @@ def test_yaml():
             'stamp_size': 31,
         },
         'psf' : {
-            'model' : { 'type': 'Gaussian' },
+            'model' : { 'type': 'GSObjectModel',
+                        'fastfit': True,
+                        'gsobj': 'galsim.Gaussian(sigma=1.0)' },
             'interp' : { 'type': 'kNNInterp',
                          'attr_interp': ['u', 'v'],
                          'attr_target': [0, 1, 2],
@@ -180,7 +182,12 @@ def test_disk():
 def test_decam_wavefront():
     file_name = 'wavefront_test/Science-20121120s1-v20i2.fits'
     extname = 'Science-20121120s1-v20i2'
-    knn = piff.des.DECamWavefront(file_name, extname)
+
+    if __name__ == '__main__':
+        logger = piff.config.setup_logger(verbose=2)
+    else:
+        logger = None
+    knn = piff.des.DECamWavefront(file_name, extname, logger=logger)
 
     n_samples = 2000
     chipnums = np.random.randint(1, 63, n_samples)

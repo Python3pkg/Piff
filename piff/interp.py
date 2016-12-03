@@ -192,7 +192,7 @@ class Interp(object):
         # interp_type = fits[extname].read_column('type')
         interp_type = fits[extname].read()['type']
         assert len(interp_type) == 1
-        interp_type = interp_type[0]
+        interp_type = str(interp_type[0].decode())
 
         # Check that interp_type is a valid Interp type.
         interp_classes = piff.util.get_all_subclasses(piff.Interp)
@@ -217,4 +217,3 @@ class Interp(object):
         :param extname:     The base name of the extension.
         """
         pass
-

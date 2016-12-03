@@ -209,7 +209,7 @@ class Optical(Model):
             atm = galsim.Kolmogorov(gsparams=self.gsparams, **self.kolmogorov_kwargs)
             prof.append(atm)
         # optics
-        if len(params) == 0:
+        if params is None or len(params) == 0:
             # no optics here
             pass
         else:
@@ -254,5 +254,3 @@ class Optical(Model):
                         values_are_sb=star.data.values_are_sb,
                         properties=properties)
         return Star(data, star.fit)
-
-

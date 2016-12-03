@@ -39,7 +39,7 @@ except ImportError:
         return found
     print("Using distutils version",distutils.__version__)
 
-from distutils.command.install_headers import install_headers 
+from distutils.command.install_headers import install_headers
 
 try:
     from sysconfig import get_config_vars
@@ -99,17 +99,11 @@ def get_compiler(cc):
     print('compiler version information: ')
     for line in lines:
         print(line.strip())
-    try:
-        # Python3 needs this decode bit.
-        # Python2.7 doesn't need it, but it works fine.
-        line = lines[0].decode(encoding='UTF-8')
-        if line.startswith('Configured'):
-            line = lines[1].decode(encoding='UTF-8')
-    except TypeError:
-        # Python2.6 throws a TypeError, so just use the lines as they are.
-        line = lines[0]
-        if line.startswith('Configured'):
-            line = lines[1]
+    # Python3 needs this decode bit.
+    # Python2.7 doesn't need it, but it works fine.
+    line = lines[0].decode(encoding='UTF-8')
+    if line.startswith('Configured'):
+        line = lines[1].decode(encoding='UTF-8')
 
     if "clang" in line:
         # clang 3.7 is the first with openmp support. So check the version number.
@@ -143,7 +137,7 @@ def get_compiler(cc):
         return 'icc'
     else:
         # OK, the main thing we need to know is what openmp flag we need for this compiler,
-        # so let's just try the various options and see what works.  Don't try icc, since 
+        # so let's just try the various options and see what works.  Don't try icc, since
         # the -openmp flag there gets treated as '-o penmp' by gcc and clang, which is bad.
         # Plus, icc should be detected correctly by the above procedure anyway.
         for cc_type in ['gcc', 'clang']:
@@ -293,9 +287,7 @@ ext=Extension("piff._piff",
               depends=headers,
               undef_macros = undef_macros)
 
-dependencies = ['numpy', 'six', 'cffi', 'fitsio', 'sklearn']
-if py_version < '2.7':
-    dependencies += ['argparse']
+dependencies = ['numpy', 'scipy', 'matplotlib', 'fitsio', 'treecorr', 'sklearn', 'lmfit']
 
 try:
     import galsim
@@ -320,7 +312,7 @@ else:
     raise RuntimeError("Unable to find version string in %s." % (version_file,))
 print('Piff version is %s'%(piff_version))
 
-dist = setup(name="Piff", 
+dist = setup(name="Piff",
       version=piff_version,
       author="Mike Jarvis",
       author_email="michael@jarvis.net",
@@ -344,7 +336,8 @@ dist = setup(name="Piff",
       )
 
 # Check that the path includes the directory where the scripts are installed.
-if dist.script_install_dir not in os.environ['PATH'].split(':'):
+if (dist.script_install_dir not in os.environ['PATH'].split(':') and
+    os.path.realpath(dist.script_install_dir) not in os.environ['PATH'].split(':')):
     print('\nWARNING: The Piff executables were installed in a directory not in your PATH')
     print('         If you want to use the executables, you should add the directory')
     print('\n             ',dist.script_install_dir,'\n')

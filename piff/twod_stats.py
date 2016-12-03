@@ -21,6 +21,7 @@ from __future__ import print_function
 import numpy as np
 
 from .stats import Stats
+import warnings
 
 class TwoDHistStats(Stats):
     """Statistics class that can make pretty colormaps where each bin has some
@@ -42,13 +43,15 @@ class TwoDHistStats(Stats):
     pixel corresponds to reducing_function([objects in u-v voxel])
     """
 
-    def __init__(self, number_bins_u=11, number_bins_v=22, reducing_function='np.median', file_name=None, logger=None):
+    def __init__(self, number_bins_u=11, number_bins_v=22, reducing_function='np.median',
+                 file_name=None, logger=None):
         """
         :param number_bins_u:       Number of bins in u direction [default: 11]
         :param number_bins_v:       Number of bins in v direction [default: 22]
-        :param reducing_function:   Type of function to apply to grouped objects. numpy functions are prefixed by np. [default: 'np.median']
-        :param file_name:   Name of the file to output to. [default: None]
-        :param logger:      A logger object for logging debug info. [default: None]
+        :param reducing_function:   Type of function to apply to grouped objects. numpy functions
+                                    are prefixed by np. [default: 'np.median']
+        :param file_name:           Name of the file to output to. [default: None]
+        :param logger:              A logger object for logging debug info. [default: None]
         """
         self.number_bins_u = number_bins_u
         self.number_bins_v = number_bins_v
@@ -67,14 +70,26 @@ class TwoDHistStats(Stats):
         if logger:
             logger.info("Obtaining Star Model Parameters")
 
-        # Pull out the positions
-        positions = np.array([ (star.data.properties['u'], star.data.properties['v'])
-                               for star in stars ])
-        u, v = positions.T
+        positions, shapes_truth, shapes_model = self.measureShapes(psf, stars, logger=logger)
+        # Only use stars for which hsm was successful
+        flag_truth = shapes_truth[:, 6]
+        flag_model = shapes_model[:, 6]
+        mask = (flag_truth == 0) & (flag_model == 0)
+        if logger:
+            logger.info("%d/%d measurements were successful",np.sum(mask),len(mask))
 
-        # obtain params of psf fit
-        params_star = np.array([star.fit.params for star in stars])
-        params_model = np.array([psf.drawStar(star).fit.params for star in stars])
+        # define terms for the catalogs
+        u = positions[mask, 0]
+        v = positions[mask, 1]
+        T = shapes_truth[mask, 3]
+        g1 = shapes_truth[mask, 4]
+        g2 = shapes_truth[mask, 5]
+        T_model = shapes_model[mask, 3]
+        g1_model = shapes_model[mask, 4]
+        g2_model = shapes_model[mask, 5]
+        dT = T - T_model
+        dg1 = g1 - g1_model
+        dg2 = g2 - g2_model
 
         # compute the indices
         if logger:
@@ -111,7 +126,11 @@ class TwoDHistStats(Stats):
 
         :returns: fig, ax
         """
-        import matplotlib.pyplot as plt
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
 
         ncols = len(self.twodhists)
         nrows = 3
@@ -119,33 +138,99 @@ class TwoDHistStats(Stats):
         # make the colormaps
         if logger:
             logger.info("Creating TwoDHist colormaps")
-        for iy in range(ncols):
+        # T and T_model share colorbar
+        vmin__T = np.min([self.twodhists['T'], self.twodhists['T_model']])
+        vmax__T = np.max([self.twodhists['T'], self.twodhists['T_model']])
+        cmap__T = self._shift_cmap(vmin__T, vmax__T)
+        # g1, g2, g1_model, g2_model share colorbar
+        vmin__g = np.min([self.twodhists['g1'], self.twodhists['g1_model'],
+                          self.twodhists['g2'], self.twodhists['g2_model']])
+        vmax__g = np.max([self.twodhists['g1'], self.twodhists['g1_model'],
+                          self.twodhists['g2'], self.twodhists['g2_model']])
+        cmap__g = self._shift_cmap(vmin__g, vmax__g)
+        # dT gets own colorbar
+        vmin__dT = np.min(self.twodhists['dT'])
+        vmax__dT = np.max(self.twodhists['dT'])
+        cmap__dT = self._shift_cmap(vmin__dT, vmax__dT)
+        # dg1 and dg2 share a colorbar
+        vmin__dg = np.min([self.twodhists['dg1'], self.twodhists['dg2']])
+        vmax__dg = np.max([self.twodhists['dg1'], self.twodhists['dg2']])
+        cmap__dg = self._shift_cmap(vmin__dg, vmax__dg)
 
-            pkey = 'p{0}'.format(iy)
-            vmin = np.ma.min([self.twodhists[pkey][:2]])
-            vmin_d = np.ma.min([self.twodhists[pkey][2]])
-            vmax = np.ma.max([self.twodhists[pkey][:2]])
-            vmax_d = np.ma.max([self.twodhists[pkey][2]])
-            vmid = np.ma.mean([self.twodhists[pkey][:2]])
-            vmid_d = np.ma.mean([self.twodhists[pkey][2]])
-            cmap = self._shift_cmap(vmin, vmax, vmid)
-            cmap_d = self._shift_cmap(vmin_d, vmax_d, vmid_d)
+        # make the plots
+        if logger:
+            logger.info("Creating TwoDHist plots")
+        ax = axs[0, 0]
+        ax.set_title('T')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['T'], cmap=cmap__T,
+                       vmin=vmin__T, vmax=vmax__T)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
 
-            for ix in range(nrows):
-                ax = axs[ix, iy]
-                if iy == 0:
-                    ax.set_ylabel('v')
-                ax.set_xlim(min(self.bins_u), max(self.bins_u))
-                ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        ax = axs[1, 0]
+        ax.set_title('T Model')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['T_model'], cmap=cmap__T,
+                       vmin=vmin__T, vmax=vmax__T)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
 
-                # diff row
-                if ix == nrows - 1:
-                    ax.set_xlabel('u')
-                    IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists[pkey][ix], cmap=cmap_d, vmin=vmin_d, vmax=vmax_d)
-                else:
-                    IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists[pkey][ix], cmap=cmap, vmin=vmin, vmax=vmax)
+        ax = axs[2, 0]
+        ax.set_title('dT')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['dT'], cmap=cmap__dT,
+                       vmin=vmin__dT, vmax=vmax__dT)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
 
-                fig.colorbar(IM, ax=ax)
+        ax = axs[0, 1]
+        ax.set_title('g1')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['g1'], cmap=cmap__g,
+                       vmin=vmin__g, vmax=vmax__g)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
+
+        ax = axs[1, 1]
+        ax.set_title('g1 Model')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['g1_model'], cmap=cmap__g,
+                       vmin=vmin__g, vmax=vmax__g)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
+
+        ax = axs[2, 1]
+        ax.set_title('dg1')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['dg1'], cmap=cmap__dg,
+                       vmin=vmin__dg, vmax=vmax__dg)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
+
+        ax = axs[0, 2]
+        ax.set_title('g2')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['g2'], cmap=cmap__g,
+                       vmin=vmin__g, vmax=vmax__g)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
+
+        ax = axs[1, 2]
+        ax.set_title('g2 Model')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['g2_model'], cmap=cmap__g,
+                       vmin=vmin__g, vmax=vmax__g)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
+
+        ax = axs[2, 2]
+        ax.set_title('dg2')
+        IM = ax.pcolor(self.bins_u, self.bins_v, self.twodhists['dg2'], cmap=cmap__dg,
+                       vmin=vmin__dg, vmax=vmax__dg)
+        ax.set_xlim(min(self.bins_u), max(self.bins_u))
+        ax.set_ylim(min(self.bins_v), max(self.bins_v))
+        fig.colorbar(IM, ax=ax)
 
         plt.tight_layout()
 
@@ -166,9 +251,13 @@ class TwoDHistStats(Stats):
 
         return C
 
-    def _shift_cmap(self, vmin, vmax, vmid=0):
-        import matplotlib.pyplot as plt
-        midpoint = (vmid - vmin) / (vmax - vmin)
+    def _shift_cmap(self, vmin, vmax):
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+        midpoint = (0 - vmin) / (vmax - vmin)
 
         # if b <= 0, then we want Blues_r
         if vmax <= 0 and vmid == 0:
@@ -209,8 +298,12 @@ class TwoDHistStats(Stats):
               Defaults to 1.0 (no upper ofset). Should be between
               `midpoint` and 1.0.
         '''
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LinearSegmentedColormap
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            from matplotlib.colors import LinearSegmentedColormap
         cdict = {
             'red': [],
             'green': [],
@@ -274,13 +367,15 @@ class WhiskerStats(Stats):
 
     Because e1, e2 do not have units, w does not either.
     """
-    def __init__(self, number_bins_u=11, number_bins_v=22, reducing_function='np.median', file_name=None, logger=None):
+    def __init__(self, number_bins_u=11, number_bins_v=22, reducing_function='np.median',
+                 file_name=None, logger=None):
         """
         :param number_bins_u:       Number of bins in u direction [default: 11]
         :param number_bins_v:       Number of bins in v direction [default: 22]
-        :param reducing_function:   Type of function to apply to grouped objects. numpy functions are prefixed by np. [default: 'np.median']
-        :param file_name:   Name of the file to output to. [default: None]
-        :param logger:      A logger object for logging debug info. [default: None]
+        :param reducing_function:   Type of function to apply to grouped objects. numpy functions
+                                    are prefixed by np. [default: 'np.median']
+        :param file_name:           Name of the file to output to. [default: None]
+        :param logger:              A logger object for logging debug info. [default: None]
         """
         self.number_bins_u = number_bins_u
         self.number_bins_v = number_bins_v
@@ -304,6 +399,8 @@ class WhiskerStats(Stats):
         flag_truth = shapes_truth[:, 6]
         flag_model = shapes_model[:, 6]
         mask = (flag_truth == 0) & (flag_model == 0)
+        if logger:
+            logger.info("%d/%d measurements were successful",np.sum(mask),len(mask))
 
         # define terms for the catalogs
         u = positions[mask, 0]
@@ -381,7 +478,11 @@ class WhiskerStats(Stats):
 
         :returns: fig, ax
         """
-        import matplotlib.pyplot as plt
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
 
         fig, axs = plt.subplots(1, 2, sharey=True, subplot_kw={'aspect' : 'equal'})
         axs[0].set_xlabel('u')
@@ -397,7 +498,7 @@ class WhiskerStats(Stats):
         # bigger scale = smaller whiskers
         quiver_dict = dict(alpha=1,
                            angles='uv',
-                           headlength=0,
+                           headlength=1.e-10,  # Using zero emits divide-by-zero warnings.
                            headwidth=0,
                            headaxislength=0,
                            minlength=0,
@@ -410,17 +511,26 @@ class WhiskerStats(Stats):
         # raw whiskers
         ax = axs[0]
         # data
-        Q = ax.quiver(self.twodhists['u'], self.twodhists['v'], self.twodhists['w1'], self.twodhists['w2'], scale=2.5e-3, **quiver_dict)
+        u = self.twodhists['u']
+        v = self.twodhists['v']
+        w1 = self.twodhists['w1']
+        w2 = self.twodhists['w2']
+        dw1 = self.twodhists['dw1']
+        dw2 = self.twodhists['dw2']
+        use = u.mask == 0
+        Q = ax.quiver(u[use], v[use], w1[use], w2[use], scale=2.5e-3, **quiver_dict)
         # quiverkey
-        ax.quiverkey(Q, 0.10, 0.10, 0.03, 'e = 0.03', coordinates='axes', color='darkred', labelcolor='darkred', labelpos='S')
+        ax.quiverkey(Q, 0.10, 0.10, 0.03, 'e = 0.03', coordinates='axes', color='darkred',
+                     labelcolor='darkred', labelpos='S')
 
         # residual whiskers
         ax = axs[1]
 
         # dw
-        Q = ax.quiver(self.twodhists['u'], self.twodhists['v'], self.twodhists['dw1'], self.twodhists['dw2'], scale=4.0e-4, **quiver_dict)
+        Q = ax.quiver(u[use], v[use], dw1[use], dw2[use], scale=4.0e-4, **quiver_dict)
         # quiverkey
-        ax.quiverkey(Q, 0.90, 0.10, 0.03, 'de = 0.03', coordinates='axes', color='darkred', labelcolor='darkred', labelpos='S')
+        ax.quiverkey(Q, 0.90, 0.10, 0.03, 'de = 0.03', coordinates='axes', color='darkred',
+                     labelcolor='darkred', labelpos='S')
 
         plt.tight_layout()
 

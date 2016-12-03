@@ -187,12 +187,12 @@ class Star(object):
                             [default: None; this overrides stamp_size]
         :param flux:        The flux of the target star. [default: 1]
         :param **kwargs:    Additional properties can also be given as keyword arguments if that
-                            is more conventient than populating the properties dict.
+                            is more convenient than populating the properties dict.
 
         :returns:   A Star instance
         """
         import galsim
-        # Check than input parameters are valid
+        # Check that input parameters are valid
         for param in ['x', 'y', 'u', 'v']:
             if eval(param) is not None and param in properties:
                 raise AttributeError("%s may not be given both as a kwarg and in properties"%param)
@@ -203,13 +203,13 @@ class Star(object):
         v = properties.pop('v', v)
         properties.update(kwargs)  # Add any extra kwargs into properties
         if (x is None) != (y is None):
-            raise AttributeError("Eitehr x and y must both be given, or neither.")
+            raise AttributeError("Either x and y must both be given, or neither.")
         if (u is None) != (v is None):
-            raise AttributeError("Eitehr u and v must both be given, or neither.")
+            raise AttributeError("Either u and v must both be given, or neither.")
         if x is None and u is None:
-            raise AttributeError("Some kind of position must be given")
+            raise AttributeError("Some kind of position must be given.")
         if wcs is not None and scale is not None:
-            raise AttributeError("scale is invalid when also providing wcs")
+            raise AttributeError("Scale is invalid when also providing wcs.")
 
         # Figure out what the wcs should be if not provided
         if wcs is None:
@@ -223,17 +223,17 @@ class Star(object):
 
         # Figure out the image_pos
         if x is None:
-            field_pos = galsim.PositionD(u,v)
+            field_pos = galsim.PositionD(float(u),float(v))
             image_pos = wcs.toImage(field_pos)
             x = image_pos.x
             y = image_pos.y
         else:
-            image_pos = galsim.PositionD(x,y)
+            image_pos = galsim.PositionD(float(x),float(y))
 
         # Make wcs locally accurate affine transformation
         if x is not None:
             if u is not None:
-                field_pos = galsim.PositionD(u,v)
+                field_pos = galsim.PositionD(float(u),float(v))
                 wcs = wcs.local(image_pos).withOrigin(image_pos, field_pos)
             else:
                 field_pos = None
@@ -271,8 +271,12 @@ class Star(object):
             prop_keys.remove(key)
         # Add any remaining properties
         for key in prop_keys:
-            dtypes.append( (key, float) )
-            cols.append( [ s.data.properties[key] for s in stars ] )
+            if hasattr(stars[0].data.properties[key], '__iter__'):
+                dtypes.append( (key, float, len(stars[0].data.properties[key])))
+                cols.append( [ s.data.properties[key] for s in stars ])
+            else:
+                dtypes.append( (key, float) )
+                cols.append( [ s.data.properties[key] for s in stars ] )
 
         # Add the local WCS values
         dtypes.extend( [('dudx', float), ('dudy', float), ('dvdx', float), ('dvdy', float) ] )
@@ -305,7 +309,7 @@ class Star(object):
             cols.append( [s.data.pointing.ra / galsim.degrees for s in stars ] )
             cols.append( [s.data.pointing.dec / galsim.degrees for s in stars ] )
 
-        data = np.array(zip(*cols), dtype=dtypes)
+        data = np.array(list(zip(*cols)), dtype=dtypes)
         fits.write_table(data, extname=extname)
 
     @classmethod
