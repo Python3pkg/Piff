@@ -21,10 +21,7 @@ from __future__ import print_function
 import numpy as np
 import fitsio
 
-from .star import Star, StarFit, StarData
-from .model import Model
-from .interp import Interp
-from .outliers import Outliers
+from .star import Star, StarData
 from .util import write_kwargs, read_kwargs
 
 class PSF(object):
@@ -106,9 +103,9 @@ class PSF(object):
         kwargs.update(config_psf)
         return kwargs
 
-    def draw(self, x, y, chipnum=0, flux=1.0, offset=(0,0), stamp_size=48,
+    def draw(self, x, y, chipnum=0, flux=1.0, offset=(0,0), stamp_size=48, image=None,
              logger=None, **kwargs):
-        """Generates PSF image at a given location.
+        """Draws an image of the PSF at a given location.
 
         The normal usage would be to specify (chipnum, x, y), in which case Piff will use the
         stored wcs information for that chip to interpolate to the given position and draw
@@ -123,6 +120,13 @@ class PSF(object):
             ('ri_color',)
             >>> image = psf.draw(chipnum=4, x=103.3, y=592.0, ri_color=0.23, stamp_size=48)
 
+        Normally, the image is constructed automatically based on stamp_size, in which case
+        the WCS will be taken to be the local Jacobian at this location on the original image.
+        However, if you provide your own image using the :image: argument, then whatever WCS
+        is present in that image will be respected.  E.g. if you want an image of the PSF in
+        sky coordinates rather than image coordinates, you can provide an image with just a
+        pixel scale for the WCS.
+
         :param x:           The image x position.
         :param y:           The image y position.
         :param chipnum:     Which chip to use for WCS information. [default: 0, which is
@@ -130,26 +134,37 @@ class PSF(object):
         :param flux:        Flux of PSF to be drawn [default: 1.0]
         :param offset:      (dx,dy) tuple giving offset of stellar center relative
                             to star.data.image_pos [default: (0,0)]
+        :param stamp_size:  The size of the image to construct if no image is provided.
+                            [default: 48]
+        :param image:       An existing image on which to draw, if desired. [default: None]
         :param logger:      A logger object for logging debug info. [default: None]
         :param **kwargs:    Additional properties required for the interpolation.
 
         :returns:           A GalSim Image of the PSF
         """
         import galsim
-        wcs = self.wcs[chipnum]
         properties = {'chipnum' : chipnum}
         for key in self.extra_interp_properties:
             if key not in kwargs:
                 raise TypeError("Extra interpolation property %r is required"%key)
-            properties = kwags.pop(key)
+            properties = kwargs.pop(key)
         if len(kwargs) != 0:
             raise TypeError("draw got an unexpecte keyword argument %r"%kwargs.keys()[0])
 
         image_pos = galsim.PositionD(x,y)
-        world_pos = StarData.calculateFieldPos(image_pos, wcs, self.pointing, properties)
+        world_pos = StarData.calculateFieldPos(image_pos, self.wcs[chipnum], self.pointing,
+                                               properties)
         u,v = world_pos.x, world_pos.y
+
+        # We always use the correct wcs above for world_pos, but in makeTarget, we allow the
+        # user's image.wcs to override.
+        if image is None or image.wcs is None:
+            wcs = self.wcs[chipnum]
+        else:
+            wcs = image.wcs
+
         star = Star.makeTarget(x=x, y=y, u=u, v=v, wcs=wcs, properties=properties,
-                               stamp_size=stamp_size)
+                               stamp_size=stamp_size, image=image)
         if logger:
             logger.debug("Drawing star at (%s,%s) on chip %s", x, y, chipnum)
 
@@ -168,7 +183,7 @@ class PSF(object):
         :param logger:      A logger object for logging debug info. [default: None]
         """
         if logger:
-            logger.info("Writing PSF to file %s",file_name)
+            logger.warning("Writing PSF to file %s",file_name)
 
         with fitsio.FITS(file_name,'rw',clobber=True) as f:
             self._write(f, 'psf', logger)
@@ -193,6 +208,15 @@ class PSF(object):
             logger.info("Wrote the PSF WCS to extname %s", extname + '_wcs')
         self._finish_write(fits, extname=extname, logger=logger)
 
+    def _finish_write(self, fits, extname, logger):
+        """Finish the writing process with any class-specific steps.
+
+        :param fits:        An open fitsio.FITS object
+        :param extname:     The base name of the extension to write to.
+        :param logger:      A logger object for logging debug info.
+        """
+        pass
+
     @classmethod
     def read(cls, file_name, logger=None):
         """Read a PSF object from a file.
@@ -203,7 +227,7 @@ class PSF(object):
         :returns: a PSF instance
         """
         if logger:
-            logger.info("Reading PSF from file %s",file_name)
+            logger.warning("Reading PSF from file %s",file_name)
 
         with fitsio.FITS(file_name,'r') as f:
             if logger:
