@@ -111,11 +111,35 @@ class TwoDHistStats(Stats):
             logger.info("Computing TwoDHist arrays")
         self.twodhists = {}
 
-        for indx in range(len(params_star.T)):
-            p = self._array_to_2dhist(params_star[:, indx], indx_u, indx_v, unique_indx)
-            p_model = self._array_to_2dhist(params_model[:, indx], indx_u, indx_v, unique_indx)
-            dp = self._array_to_2dhist(params_star[:, indx] - params_model[:, indx], indx_u, indx_v, unique_indx)
-            self.twodhists['p{0}'.format(indx)] = [p, p_model, dp]
+        # throw in coordinates for good measure
+        self.twodhists['u'] = self._array_to_2dhist(u, indx_u, indx_v, unique_indx)
+        self.twodhists['v'] = self._array_to_2dhist(v, indx_u, indx_v, unique_indx)
+        # T
+        self.twodhists['T'] = self._array_to_2dhist(T, indx_u, indx_v, unique_indx)
+
+        # g1
+        self.twodhists['g1'] = self._array_to_2dhist(g1, indx_u, indx_v, unique_indx)
+
+        # g2
+        self.twodhists['g2'] = self._array_to_2dhist(g2, indx_u, indx_v, unique_indx)
+
+        # T_model
+        self.twodhists['T_model'] = self._array_to_2dhist(T, indx_u, indx_v, unique_indx)
+
+        # g1_model
+        self.twodhists['g1_model'] = self._array_to_2dhist(g1_model, indx_u, indx_v, unique_indx)
+
+        # g2_model
+        self.twodhists['g2_model'] = self._array_to_2dhist(g2_model, indx_u, indx_v, unique_indx)
+
+        # dT
+        self.twodhists['dT'] = self._array_to_2dhist(dT, indx_u, indx_v, unique_indx)
+
+        # dg1
+        self.twodhists['dg1'] = self._array_to_2dhist(dg1, indx_u, indx_v, unique_indx)
+
+        # dg2
+        self.twodhists['dg2'] = self._array_to_2dhist(dg2, indx_u, indx_v, unique_indx)
 
     def plot(self, logger=None, **kwargs):
         """Make the plots.
@@ -132,9 +156,16 @@ class TwoDHistStats(Stats):
             matplotlib.use('Agg')
             import matplotlib.pyplot as plt
 
-        ncols = len(self.twodhists)
-        nrows = 3
-        fig, axs = plt.subplots(ncols=ncols, nrows=nrows, figsize=(4 * nrows, 3 * ncols))
+        fig, axs = plt.subplots(ncols=3, nrows=3, figsize=(12, 9))
+        # left column gets the Y coordinate label
+        axs[0, 0].set_ylabel('v')
+        axs[1, 0].set_ylabel('v')
+        axs[2, 0].set_ylabel('v')
+
+        # bottom row gets the X coordinate label
+        axs[2, 0].set_xlabel('u')
+        axs[2, 1].set_xlabel('u')
+        axs[2, 2].set_xlabel('u')
         # make the colormaps
         if logger:
             logger.info("Creating TwoDHist colormaps")
@@ -260,10 +291,10 @@ class TwoDHistStats(Stats):
         midpoint = (0 - vmin) / (vmax - vmin)
 
         # if b <= 0, then we want Blues_r
-        if vmax <= 0 and vmid == 0:
+        if vmax <= 0:
             return plt.cm.Blues_r
         # if a >= 0, then we want Reds
-        elif vmin >= 0 and vmid == 0:
+        elif vmin >= 0:
             return plt.cm.Reds
         else:
             return self._shiftedColorMap(plt.cm.RdBu_r, midpoint=midpoint)

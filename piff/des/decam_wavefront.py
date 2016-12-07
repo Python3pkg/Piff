@@ -101,7 +101,7 @@ class DECamWavefront(kNNInterp):
             logger.debug("misalignement shape = %s",self.misalignment.shape)
 
         # to get the ccd coords
-        attr_save = ['x', 'y', 'ccdnum']
+        attr_save = ['x', 'y', 'chipnum']
         Xpixel = np.array([data[attr] for attr in attr_save]).T
         self.Xpixel = Xpixel
         if logger:
