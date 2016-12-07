@@ -74,17 +74,14 @@ def generate_sample(params={}, n_samples=5000, engine='donutlib', seed=12345):
     stars = []
     arcsecperpixel = 0.263 # arcsec per pixel
     decaminfo = piff.des.decaminfo.DECamInfo()
-    for icen, jcen, chipnum in zip(icens, jcens, chipnums):
-        # convert icen to u based on chipnums.
-        # focal plane center: (u,v) = (0,0)
-        # get focal coords
-        xpos, ypos = decaminfo.getPosition_chipnum(chipnum, icen, jcen)
-        # convert from mm to uv
-        u = xpos / decaminfo.mmperpixel * arcsecperpixel
-        v = ypos / decaminfo.mmperpixel * arcsecperpixel
-
-        # print(icen, jcen, u, v, chipnum)
-
+    # convert icen to u based on chipnums.
+    # focal plane center: (u,v) = (0,0)
+    # get focal coords
+    xpos, ypos = decaminfo.getPosition_chipnum(chipnums, icens, jcens)
+    # convert from mm to uv
+    us = xpos / decaminfo.mmperpixel * arcsecperpixel
+    vs = ypos / decaminfo.mmperpixel * arcsecperpixel
+    for icen, jcen, chipnum, u, v in zip(icens, jcens, chipnums, us, vs):
         # we make the star smaller to speed things up
         star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, stamp_size=24, scale=arcsecperpixel)
         stars.append(star)

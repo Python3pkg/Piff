@@ -145,11 +145,21 @@ class DECamInfo(object):
         :returns xPos, yPos:    Arrays of x and y coordinates in mm on the focal plane.
         """
         # do getPosition but with chipnum instead
-        xpixHalfSize = 1024. * np.ones(len(chipnums))
-        ypixHalfSize = 1024. * np.ones(len(chipnums))
-        ypixHalfSize = np.where(np.array(chipnums) > 62, 1024., 2048.)
-        xCenter = self.infoArr[chipnums][:, 0]
-        yCenter = self.infoArr[chipnums][:, 1]
+        try:
+            xpixHalfSize = 1024. * np.ones(len(chipnums))
+            ypixHalfSize = 1024. * np.ones(len(chipnums))
+            ypixHalfSize = np.where(chipnums > 62, 1024., 2048.)
+            xCenter = self.infoArr[chipnums][:, 0]
+            yCenter = self.infoArr[chipnums][:, 1]
+        except TypeError:
+            # chipnum is probably an int
+            xpixHalfSize = 1024.
+            if chipnums > 62:
+                ypixHalfSize = 1024
+            else:
+                ypixHalfSize = 2048
+            xCenter = self.infoArr[chipnums][0]
+            yCenter = self.infoArr[chipnums][1]
 
         xPos = xCenter + (ix - xpixHalfSize + 0.5) * self.mmperpixel
         yPos = yCenter + (iy - ypixHalfSize + 0.5) * self.mmperpixel
@@ -164,12 +174,21 @@ class DECamInfo(object):
 
         :returns ix, iy:    Arrays of x and y coordinates in pixels
         """
-        # do getPixel but with chipnum instead
-        xpixHalfSize = 1024. * np.ones(len(chipnums))
-        ypixHalfSize = 1024. * np.ones(len(chipnums))
-        ypixHalfSize = np.where(np.array(chipnums) > 62, 1024., 2048.)
-        xCenter = self.infoArr[chipnums][:, 0]
-        yCenter = self.infoArr[chipnums][:, 1]
+        try:
+            xpixHalfSize = 1024. * np.ones(len(chipnums))
+            ypixHalfSize = 1024. * np.ones(len(chipnums))
+            ypixHalfSize = np.where(chipnums > 62, 1024., 2048.)
+            xCenter = self.infoArr[chipnums][:, 0]
+            yCenter = self.infoArr[chipnums][:, 1]
+        except TypeError:
+            # chipnum is probably an int
+            xpixHalfSize = 1024.
+            if chipnums > 62:
+                ypixHalfSize = 1024
+            else:
+                ypixHalfSize = 2048
+            xCenter = self.infoArr[chipnums][0]
+            yCenter = self.infoArr[chipnums][1]
 
         ix = (xPos - xCenter) / self.mmperpixel + xpixHalfSize - 0.5
         iy = (yPos - yCenter) / self.mmperpixel + ypixHalfSize - 0.5
@@ -268,7 +287,7 @@ class DECamInfo(object):
         """
         # stardata needs to have ccdnum as a property!
         focal_x, focal_y = self.getPosition_chipnum(
-            np.array([stardata['ccdnum']]), np.array([stardata['x']]), np.array([stardata['y']]))
+            np.array([stardata['chipnum']]), np.array([stardata['x']]), np.array([stardata['y']]))
         properties = stardata.properties.copy()
         properties['focal_x'] = focal_x
         properties['focal_y'] = focal_y

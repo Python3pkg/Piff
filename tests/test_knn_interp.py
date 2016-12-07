@@ -189,7 +189,7 @@ def test_decam_wavefront():
         logger = None
     knn = piff.des.DECamWavefront(file_name, extname, logger=logger)
 
-    n_samples = 2000
+    n_samples = 20000
     chipnums = np.random.randint(1, 63, n_samples)
 
     star_list = []
