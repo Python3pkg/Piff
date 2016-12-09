@@ -170,7 +170,9 @@ class TwoDHistStats(Stats):
         if logger:
             logger.info("Creating TwoDHist colormaps")
         # T and T_model share colorbar
-        vmin__T = np.min([self.twodhists['T'], self.twodhists['T_model']])
+        # note that T > 0, so let's make our life easier with that knowledge
+        Tvals = np.array([self.twodhists['T'], self.twodhists['T_model']])
+        vmin__T = np.min(Tvals[Tvals > 0])
         vmax__T = np.max([self.twodhists['T'], self.twodhists['T_model']])
         cmap__T = self._shift_cmap(vmin__T, vmax__T)
         # g1, g2, g1_model, g2_model share colorbar
@@ -515,7 +517,7 @@ class WhiskerStats(Stats):
             matplotlib.use('Agg')
             import matplotlib.pyplot as plt
 
-        fig, axs = plt.subplots(1, 2, sharey=True, subplot_kw={'aspect' : 'equal'})
+        fig, axs = plt.subplots(1, 2, sharey=True, subplot_kw={'aspect' : 'equal'}, figsize=(12, 10))
         axs[0].set_xlabel('u')
         axs[0].set_ylabel('v')
         axs[1].set_xlabel('u')
