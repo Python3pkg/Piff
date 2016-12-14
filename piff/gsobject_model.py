@@ -68,6 +68,9 @@ class GSObjectModel(Model):
         ref_flux, ref_cenu, ref_cenv, ref_size, ref_g1, ref_g2, flag = hsm(self.draw(star))
         ref_shape = galsim.Shear(g1=ref_g1, g2=ref_g2)
         if flag:
+            if logger:
+                logger.debug('Error with star moment_fit. Values are:')
+                logger.debug('{0:.2e} {1:.2e} {2:.2e} {3:.2e} {4:.2e} {5:.2e} {6:.2e}'.format(ref_flux, ref_cenu, ref_cenv, ref_size, ref_g1, ref_g2, flag))
             raise RuntimeError("Error calculating model moments for this star.")
 
         param_flux = star.fit.flux
@@ -218,10 +221,13 @@ class GSObjectModel(Model):
         return flux, du, dv, scale, g1, g2
 
     @staticmethod
-    def with_hsm(star):
+    def with_hsm(star, logger=None):
         if not hasattr(star.data.properties, 'hsm'):
             flux, cenu, cenv, size, g1, g2, flag = hsm(star)
             if flag != 0:
+                if logger:
+                    logger.debug('Error with star with_hsm. Values are:')
+                    logger.debug('{0:.2e} {1:.2e} {2:.2e} {3:.2e} {4:.2e} {5:.2e} {6:.2e}'.format(flux, cenu, cenv, size, g1, g2, flag))
                 raise RuntimeError("Error initializing star fit values using hsm.")
             sd = star.data.copy()
             sd.properties['hsm'] = flux, cenu, cenv, size, g1, g2
@@ -248,7 +254,7 @@ class GSObjectModel(Model):
             fastfit = self._fastfit
 
         if not hasattr(star.data.properties, 'hsm'):
-            star = self.initialize(star)
+            star = self.initialize(star, logger=logger)
 
         if fastfit:
             flux, du, dv, scale, g1, g2 = self.moment_fit(star, logger=logger)
@@ -280,7 +286,7 @@ class GSObjectModel(Model):
 
         :returns: a new initialized Star.
         """
-        star = self.with_hsm(star)
+        star = self.with_hsm(star, logger=logger)
         if star.fit.params is None:
             if self._force_model_center:
                 params = np.array([ 1.0, 0.0, 0.0])
@@ -288,8 +294,8 @@ class GSObjectModel(Model):
                 params = np.array([ 0.0, 0.0, 1.0, 0.0, 0.0])
             fit = StarFit(params, flux=1.0, center=(0.0, 0.0))
             star = Star(star.data, fit)
-            star = self.fit(star, fastfit=True)
-        star = self.reflux(star, fit_center=False)
+            star = self.fit(star, fastfit=True, logger=logger)
+        star = self.reflux(star, fit_center=False, logger=logger)
         return star
 
     def reflux(self, star, fit_center=True, logger=None):
