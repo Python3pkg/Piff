@@ -36,15 +36,29 @@ optical_templates = {
              'strut_angle': 45 * galsim.degrees,
              'r0': 0.1,
            },
+    # 'des_no_obscuration': {
+    #          'nstruts': 4,
+    #          'diam': 4.274419,  # meters
+    #          'lam': 700, # nm
+    #          # aaron plays between 19 mm thick and 50 mm thick
+    #          'strut_thick': 0.050 * (1462.526 / 4010.) / 2.0, # conversion factor is nebulous?!
+    #          'strut_angle': 45 * galsim.degrees,
+    #          'r0': 0.1,
+    #        },
     'lsst': { 'obscuration': 0.61,
              'diam': 8.36,
              'lam': 700, # nm
              'r0': 0.1,
            },
+    # 'lsst_no_obscuration': {
+    #          'diam': 8.36,
+    #          'lam': 700, # nm
+    #          'r0': 0.1,
+    #        },
 }
 
 class Optical(Model):
-    def __init__(self, template=None, logger=None, gsparams=None, **kwargs):
+    def __init__(self, scale_optical_lambda=1.0, template=None, logger=None, gsparams=None, **kwargs):
         """Initialize the Optical Model
 
         There are potentially three components to this model that are convolved together.
@@ -53,6 +67,8 @@ class Optical(Model):
         profile.  The aberrations are considered fitted parameters, but the other attributes
         are fixed and are given at initialization.  These parameters are passed to GalSim, so
         they have the same definitions as used there.
+
+        :param scale_optical_lambda: [default: 1.0] factor by which to scale lambda to facilitate optical calculations. Potential speed up if doubled?
 
         :param diam:            Diameter of telescope aperture in meters. [required (but cf.
                                 template option)]
@@ -107,7 +123,7 @@ class Optical(Model):
 
         # Copy over anything from the template dict, but let the direct kwargs override anything
         # in the template.
-        self.kwargs = {}
+        self.kwargs = {'scale_optical_lambda': scale_optical_lambda}
         if template is not None:
             if template not in optical_templates:
                 raise ValueError("Unknown template specified: %s"%template)
@@ -123,6 +139,8 @@ class Optical(Model):
                             'pupil_angle', 'pupil_plane_scale', 'pupil_plane_size')
         self.optical_psf_kwargs = { key : self.kwargs[key] for key in self.kwargs
                                                            if key in optical_psf_keys }
+        if 'lam' in self.optical_psf_kwargs:
+            self.optical_psf_kwargs['lam'] = self.kwargs['scale_optical_lambda'] * self.optical_psf_kwargs['lam']
 
         # Deal with the pupil plane image now so it only needs to be loaded from disk once.
         if 'pupil_plane_im' in kwargs:

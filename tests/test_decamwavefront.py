@@ -16,54 +16,95 @@ from __future__ import print_function
 import numpy as np
 import piff
 import os
+import yaml
+import subprocess
+
+from piff_test_helper import get_script_name
+
+import matplotlib
+matplotlib.use('Agg')
 
 from time import time
 
 def test_init():
     load_decamwavefrontpsf()
 
-def test_fit(engine='donutlib'):
-    # fit only a couple parameters
-    params = {'r0': 0.14,
+def test_fit(engine='galsim_fast'):
+    params_list = [
+            { 'z04d': 0.5, },
+            { 'r0': 0.14,
+              'z05d': 0.5, },
+            {
+              'r0': 0.14,
               'z04d': 0.5,
               'z05d': 0.5,
-              'z07d': -0.5,
               'z06x': 0.002,
+              'z07d': -0.5,
               'z10d': -0.5,
-              }
-    n_samples = 100
-    psf = load_decamwavefrontpsf(engine=engine)
-    stars, wf, deltatime = generate_sample(params, n_samples, engine=engine)
+              },
+            ]
+    for params_i, params in enumerate(params_list):
+        # fit only a couple parameters
+        n_samples = 100
+        psf = load_decamwavefrontpsf(engine=engine)
+        stars, wf, deltatime = generate_sample(params, n_samples, engine=engine)
 
-    # speed things up by fixing the other keys
-    for key in psf.minuit_kwargs:
-        if 'fix' in key:
-            if key.split('fix_')[-1] in params.keys():
-                psf.minuit_kwargs[key] = False
-            else:
-                psf.minuit_kwargs[key] = True
+        # speed things up by fixing the other keys
+        for key in psf.minuit_kwargs:
+            if 'fix' in key:
+                if key.split('fix_')[-1] in params.keys():
+                    psf.minuit_kwargs[key] = False
+                else:
+                    psf.minuit_kwargs[key] = True
 
-    psf.fit(stars, None, None)
+        psf.fit(stars, None, None)
 
-    # plot results of fit
-    for name, Stats in zip(['twodhist', 'whisker'], [piff.TwoDHistStats, piff.WhiskerStats]):
-        stats = Stats(file_name='wavefront_test/fit_{0}.png'.format(name))
-        stats.compute(psf, psf.stars)
-        stats.write()
+        # plot results of fit
+        # for name, Stats in zip(['twodhist', 'whisker'], [piff.TwoDHistStats, piff.WhiskerStats]):
+        for name, Stats in zip(['twodhist'], [piff.TwoDHistStats]):
+            stats = Stats(file_name='wavefront_test/fit_{0}_{1}.png'.format(params_i, name),
+                          number_bins_u=11, number_bins_v=22)
+            stats.compute(psf, psf.stars)
+            stats.write()
 
-    # check fit
-    import ipdb; ipdb.set_trace()
+        # check fit
+        for key in params:
+            print('checking fit values for {0}:{1}'.format(params_i, key))
+            rtol = 0.1
+            np.testing.assert_allclose(params[key], psf.kwargs['minuit'][key], rtol=rtol)
+            np.testing.assert_allclose(params[key], psf._fitarg[key], rtol=rtol)
 
-def test_full_fit():
-    pass
-
-def test_disk():
-    pass
+        # check that if you put in the correct params you get a reasonable chisq of, um, basically zero
+        fitval = psf._fit_func(**psf._minuit.values)
+        values = {key: psf._minuit.values[key] for key in psf._minuit.values}
+        values.update(params)
+        inval = psf._fit_func(**values)
+        assert inval <= fitval,"Somehow the fit does better than our input?! {0:.2e} vs {1:.2e}".format(inval, fitval)
 
 def test_yaml():
-    pass
+    # piffify in code
+    with open('wavefrontpsf.yaml') as f_in:
+        config = yaml.load(f_in.read())
+    if __name__ == '__main__':
+        logger = piff.config.setup_logger(verbose=2)
+    else:
+        logger = piff.config.setup_logger(verbose=0)
+    # Do the whole thing with the config parser
+    piff.piffify(config, logger)
+    psf_file = '{0}/{1}'.format(config['output']['dir'], config['output']['file_name'])
+    psf = piff.read(psf_file)
+    # TODO: Other tests
 
-def generate_sample(params={}, n_samples=5000, engine='donutlib', seed=12345):
+    # Test using the piffify executable
+    os.remove(psf_file)
+    config['verbose'] = 1
+    piffify_exe = get_script_name('piffify')
+    p = subprocess.Popen( [piffify_exe, 'wavefrontpsf.yaml'] )
+    p.communicate()
+    psf = piff.read(psf_file)
+    import ipdb; ipdb.set_trace()
+
+def generate_sample(params={}, n_samples=5000, engine='galsim_fast', seed=123456):
 
     np.random.seed(seed)
     chipnums = np.random.randint(1, 63, n_samples)
@@ -83,32 +124,11 @@ def generate_sample(params={}, n_samples=5000, engine='donutlib', seed=12345):
     vs = ypos / decaminfo.mmperpixel * arcsecperpixel
     for icen, jcen, chipnum, u, v in zip(icens, jcens, chipnums, us, vs):
         # we make the star smaller to speed things up
-        star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, stamp_size=24, scale=arcsecperpixel)
+        star = piff.Star.makeTarget(x=icen, y=jcen, u=u, v=v, properties={'chipnum': chipnum}, stamp_size=32, scale=arcsecperpixel)
         stars.append(star)
 
     # get the focal positions
     stars = piff.des.DECamInfo().pixel_to_focalList(stars)
-
-    # star = stars[0]
-    # for engine_i, engine in enumerate(['regular', 'fast', 'donutlib']):
-    #     # apply decamwavefrontpsf
-    #     psf = load_decamwavefrontpsf(engine=engine)
-    #     psf.update_psf_params(**params)
-    #     # this is really slow?!
-    #     # stars = [psf.drawStar(s) for s in stars]
-    #     star = psf.drawStar(star)
-    #     star.fit.center = (0, 0)
-    #     print(engine)
-    #     star.fit.params[0] = -1
-    #     star.fit.params[1] = 0.5
-    #     star.fit.params[3] = -1
-    #     star.fit.params[5] = -0.5
-    #     star = psf.drawStar(star)
-    #     fig, ax = plot_star(star, vmin=0.00, vmax=0.05)
-    #     ax.set_title(engine)
-    # import matplotlib.pyplot as plt
-    # plt.show()
-    # raise Exception
 
     psf = load_decamwavefrontpsf(engine=engine)
     psf.update_psf_params(**params)
@@ -118,7 +138,7 @@ def generate_sample(params={}, n_samples=5000, engine='donutlib', seed=12345):
 
     return stars, psf, time1 - time0
 
-def load_decamwavefrontpsf(engine='galsim', do_pupil_plane_im=False):
+def load_decamwavefrontpsf(engine='galsim_fast', do_pupil_plane_im=False):
     knn_file_name = 'wavefront_test/Science-20121120s1-v20i2.fits'
     knn_extname = 'Science-20121120s1-v20i2'
     if do_pupil_plane_im:
@@ -130,12 +150,9 @@ def load_decamwavefrontpsf(engine='galsim', do_pupil_plane_im=False):
             pupil_plane_scale = 12.823257 * 1. / 512
         else:
             pupil_plane_scale = 1.
-        psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, pupil_plane_im, engine=engine, model_kwargs={'pupil_plane_scale': pupil_plane_scale})
+        psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, pupil_plane_im, engine=engine, model_kwargs={'pupil_plane_scale': pupil_plane_scale}, verbose=2)
     else:
-        # obscuration slows things down tremendously. We are not particularly interested
-        # in fidelity to DECam (vs fidelity to the code) for these tests, so set that to 0
-        # psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, model_kwargs={'obscuration':0}, verbose=True, engine=engine)
-        psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, verbose=True, engine=engine)
+        psf = piff.des.DECamWavefrontPSF(knn_file_name, knn_extname, verbose=2, engine=engine)
 
     return psf
 
@@ -146,27 +163,42 @@ def test_optical_engines():
     # use the reduced GSParams or the default GSParams
 
     params = {'r0': 0.2,
-              # 'z04d': 0.5,
-              # 'z05d': 0.5,
-              # 'z07d': -0.5,
-              # 'z06x': 0.002,
-              # 'z10d': -0.5,
+              'z04d': 0.5,
+              'z05d': 0.5,
+              'z07d': -0.5,
+              'z06x': 0.002,
+              'z10d': -0.5,
               }
-    n_samples = 50
-
     shapes = {}
-    engines = ['donutlib', 'donutlib_again', 'donutlib_fast', 'donutlib_fast_scalefactor', 'donutlib_scalefactor', 'donutlib_old', 'galsim_fast', 'galsim']
+    # TODO: choose engines and templates from decamwavefront class
+    # TODO: galsim_faster has problems with ellipticity second moment
+    engines = ['galsim_fast',
+               # 'galsim_faster',
+               'galsim',
+               # 'galsim_faster_double', 'galsim_fast_double',
+               ]
     templates = ['des', 'lsst']
-    import matplotlib.pyplot as plt
+
+    # repeat a couple times
     for template in templates:
         for engine in engines:
-            stars, wf, deltatime = generate_sample(params, n_samples, engine=engine)
-            print('took {0:.2e} to drawStarList {1} stars for {2}'.format(deltatime, n_samples, engine))
+            for n_samples in [1, 1, 1, 10, 50, 100]:
+                stars, wf, deltatime = generate_sample(params, n_samples, engine=engine)
+                print('took {0:.2e} to drawStarList {1} stars for {2} on {3} template'.format(deltatime, n_samples, engine, template))
+
+        n_samples = 50
+        for engine in engines:
+            # load engine
+            wf_i = load_decamwavefrontpsf(engine=engine)
+            wf_i.update_psf_params(**params)
+            # draw stars
+            stars_i = wf_i.drawStarList(stars)
             # get the shapes
-            stars = [wf.model_comparer.fit(star) for star in stars]
-            shapes[engine] = np.array([star.fit.params for star in stars])
+            stars_i = wf_i._measure_shapes(stars_i)
+            shapes[engine] = np.array([star.fit.params for star in stars_i])
             shapes[engine][:, 1:] = shapes[engine][:, 0][:, None] * shapes[engine][:, 1:]
 
+        import matplotlib.pyplot as plt
         # now we want that all three engines have similar shapes
         nrows = int(0.5 * len(engines) * (len(engines) - 1))
         fig, axs = plt.subplots(figsize=(5 * 3, 4 * nrows), ncols=3, nrows=nrows, squeeze=False)
@@ -186,8 +218,20 @@ def test_optical_engines():
                 ax.set_title(template)
                 ax_row += 1
         plt.tight_layout()
-        fig.savefig('{0}.pdf'.format(template))
-    import ipdb; ipdb.set_trace()
+        fig.savefig('wavefront_test/{0}.png'.format(template))
+
+        # assert that available engines have same shape
+        ax_row = 0
+        nrows = int(0.5 * len(engines) * (len(engines) - 1))
+        for engine_i in range(len(engines)):
+            for engine_j in range(engine_i + 1, len(engines)):
+                for ax_i in range(nrows):
+                    x = shapes[engines[engine_i]][:, ax_i]
+                    y = shapes[engines[engine_j]][:, ax_i]
+                    diff = (x - y) / x
+                    goal = np.zeros(len(diff))
+                    np.testing.assert_almost_equal(diff, goal, decimal=3)
+                ax_row += 1
 
 def test_chisq():
     # we have some prior sense of how well the chisquare should perform to
@@ -207,10 +251,8 @@ def plot_star(star, vmin=None, vmax=None):
     return fig, ax
 
 if __name__ == '__main__':
-    # test_init()
-    test_optical_engines()
+    test_init()
+    # test_optical_engines()
     # test_fit()
-    # test_full_fit()
-    # test_disk()
-    # test_yaml()
-    # test_fit()
+    test_yaml()
+    test_chisq()

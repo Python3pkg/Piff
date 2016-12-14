@@ -62,7 +62,8 @@ class DonutEngine(Model):
         self.make_makedonut(**self.kwargs)
 
     def make_makedonut(self, **kwargs):
-        from donutlib.makedonut import makedonut
+        # from donutlib.makedonut import makedonut
+        makedonut = None
 
         makedonut_dict = {'nbin': 96,  # 256
                           'nPixels': 24,  # 32
