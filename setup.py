@@ -1,7 +1,6 @@
 from __future__ import print_function
 import sys,os,glob,re
 
-
 try:
     from setuptools import setup, Extension, find_packages
     from setuptools.command.build_ext import build_ext
@@ -269,18 +268,26 @@ class my_easy_install( easy_install ):  # For setuptools
 
     # Match the call signature of the easy_install version.
     def write_script(self, script_name, contents, mode="t", *ignored):
+        print('Starting my_easy_install.write_script for ',script_name)
         # Run the normal version
         easy_install.write_script(self, script_name, contents, mode, *ignored)
         # Save the script install directory in the distribution object.
         # This is the same thing that is returned by the setup function.
         self.distribution.script_install_dir = self.script_dir
+        print('self.script_dir = ',self.script_dir)
+        print('self.distribution = ',self.distribution)
+        print('saved script_install_dir as = ',self.distribution.script_install_dir)
 
 # For distutils, the appropriate thing is the install_scripts command class, not easy_install.
 # So here is the appropriate thing in that case.
 class my_install_scripts( install_scripts ):  # For distutils
     def run(self):
+        print('Starting my_install_scripts')
         install_scripts.run(self)
         self.distribution.script_install_dir = self.install_dir
+        print('self.install_dir = ',self.install_dir)
+        print('self.distribution = ',self.distribution)
+        print('saved script_install_dir as = ',self.distribution.script_install_dir)
 
 ext=Extension("piff._piff",
               sources,
@@ -334,6 +341,9 @@ dist = setup(name="Piff",
       #headers=headers,
       scripts=scripts
       )
+
+print('dist = ',dist)
+print('dist.dict.keys = ',sorted(dist.__dict__.keys()))
 
 # Check that the path includes the directory where the scripts are installed.
 if (dist.script_install_dir not in os.environ['PATH'].split(':') and
