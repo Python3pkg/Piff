@@ -19,4 +19,3 @@ Some specialized features that specific to the DES survey and the DECam camera.
 from .decam_wavefront import DECamWavefront
 from .decaminfo import DECamInfo
 from .decam_wavefront_psf import DECamWavefrontPSF
-from .donutengine_model import DonutEngine

@@ -33,8 +33,6 @@ from ..optical_model import Optical
 from .decam_wavefront import DECamWavefront
 from .decaminfo import DECamInfo
 
-from .donutengine_model import DonutEngine
-
 from time import time
 
 class DECamWavefrontPSF(PSF):
@@ -46,12 +44,12 @@ class DECamWavefrontPSF(PSF):
         Constant optical sigma or kolmogorov, g1, g2 in model
         misalignments in interpolant: these are the interp.misalignment terms
     """
-    def __init__(self, knn_file_name, knn_extname, max_stars=0, error_estimate=0.001, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.5, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}, verbose=0, engine='galsim', template='des'):
+    def __init__(self, knn_file_name, knn_extname, max_stars=0, error_estimate=0.001, pupil_plane_im=None,  extra_interp_properties=None, weights=np.array([0.75, 1, 1]), minuit_kwargs={}, interp_kwargs={}, model_kwargs={}, verbose=0, engine='galsim', template='des'):
         """
 
 
         :param max_stars:                   [default: 0] If > 0, randomly sample only max_stars for the fit
-        :param error_estimate:              [default: 0.01] Fudge factor in chi square until we get real errors for the hsm algorithm
+        :param error_estimate:              [default: 0.01] Fudge factor in chi square until we get real errors for the hsm algorithm. Gives us how well we think we measure the moments.
         :param extra_interp_properties:     A list of any extra properties that will be used for
                                             the interpolation in addition to (u,v).
                                             [default: None]
@@ -86,13 +84,12 @@ class DECamWavefrontPSF(PSF):
             'verbose': verbose,
             'max_stars': max_stars,
             'error_estimate': error_estimate,
+            'template': template,
+            'engine': engine,
             }
 
         # load up the model after kwargs are set
-        # donutengine ends up not being much faster in this framework :(
-        self._engines = ['galsim', 'galsim_fast', 'galsim_faster', 'galsim_fast_double', 'galsim_faster_double']
-        # ORDER CORRESPONDS TO iTelescope FOR DONUTLIB!
-        self._templates = ['des', 'MosaicII', 'lsst']
+        self._engines = ['galsim', 'galsim_fast', 'galsim_faster']
         self._model(template=template, engine=engine, **model_kwargs)
 
 
@@ -102,9 +99,10 @@ class DECamWavefrontPSF(PSF):
             'throw_nan': False,
             'pedantic': True,
             'print_level': int(self.kwargs['verbose']),
-            'errordef': 0.01,  # guesstimated
+            'errordef': 0.5,  # guesstimated
 
-            'r0': 0.15, 'fix_r0': False,   'limit_r0': (0.08, 0.25), 'error_r0': 1e-2,
+            # note: r0 is in meters. Use 0.976 * lam / r0 = fwhm. This is odd, but lam is in nm, r0 is in m, and fwhm is in pixels?
+            'r0': 0.15, 'fix_r0': False,   'limit_r0': (0.01, 0.25), 'error_r0': 1e-2,
             'g1': 0,   'fix_g1': False,   'limit_g1': (-0.2, 0.2),  'error_g1': 1e-2,
             'g2': 0,   'fix_g2': False,   'limit_g2': (-0.2, 0.2),  'error_g2': 1e-2,
             'z04d': 0, 'fix_z04d': False, 'limit_z04d': (-2, 2),
@@ -159,7 +157,22 @@ class DECamWavefrontPSF(PSF):
 
         self.minuit_kwargs.update(self.kwargs['minuit'])
 
+        # update psf params before creating misalignment fix so that we get the initial values
+        self._misalignment_fix = np.array([[False] * 3] * (11 - 4 + 1))
         self.update_psf_params(**self.minuit_kwargs)
+
+        # bool array for fixing matrix
+        self._misalignment_fix = np.array([
+            [self.minuit_kwargs['fix_z04d'], self.minuit_kwargs['fix_z04x'], self.minuit_kwargs['fix_z04y']],
+            [self.minuit_kwargs['fix_z05d'], self.minuit_kwargs['fix_z05x'], self.minuit_kwargs['fix_z05y']],
+            [self.minuit_kwargs['fix_z06d'], self.minuit_kwargs['fix_z06x'], self.minuit_kwargs['fix_z06y']],
+            [self.minuit_kwargs['fix_z07d'], self.minuit_kwargs['fix_z07x'], self.minuit_kwargs['fix_z07y']],
+            [self.minuit_kwargs['fix_z08d'], self.minuit_kwargs['fix_z08x'], self.minuit_kwargs['fix_z08y']],
+            [self.minuit_kwargs['fix_z09d'], self.minuit_kwargs['fix_z09x'], self.minuit_kwargs['fix_z09y']],
+            [self.minuit_kwargs['fix_z10d'], self.minuit_kwargs['fix_z10x'], self.minuit_kwargs['fix_z10y']],
+            [self.minuit_kwargs['fix_z11d'], self.minuit_kwargs['fix_z11x'], self.minuit_kwargs['fix_z11y']],
+            ])
+
 
         self._time = time()
 
@@ -180,22 +193,8 @@ class DECamWavefrontPSF(PSF):
             oversampling = 0.5
             self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
             self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
-        elif engine == 'galsim_fast_double':
-            # pass in gsparams object to speed up everything
-            gsparams = galsim.GSParams(minimum_fft_size=32,  # 128
-                                       # maximum_fft_size=1024,  # 4096
-                                       # stepk_minimum_hlr=5,  # 5
-                                       # folding_threshold=5e-3,  # 5e-3
-                                       # maxk_threshold=1e-3,  # 1e-3
-                                       # kvalue_accuracy=1e-5,  # 1e-5
-                                       # xvalue_accuracy=1e-5,  # 1e-5
-                                       # table_spacing=1.,  # 1
-                                       )
-            # padfactor?
-            pad_factor = 0.5
-            oversampling = 0.5
-            self.model = Optical(scale_optical_lambda=2.0, template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
         elif engine == 'galsim_faster':
+            # TODO: something is messed up in g2 moments here...
             # pass in gsparams object to speed up everything
             gsparams = galsim.GSParams(minimum_fft_size=32,  # 128
                                        # maximum_fft_size=4096,  # 4096
@@ -210,111 +209,45 @@ class DECamWavefrontPSF(PSF):
             pad_factor = 0.25
             oversampling = 0.5
             self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
-        elif engine == 'galsim_faster_double':
-            # pass in gsparams object to speed up everything
-            gsparams = galsim.GSParams(minimum_fft_size=32,  # 128
-                                       # maximum_fft_size=512,  # 4096
-                                       # stepk_minimum_hlr=5,  # 5
-                                       # folding_threshold=5e-3,  # 5e-3
-                                       # maxk_threshold=1e-3,  # 1e-3
-                                       # kvalue_accuracy=1e-5,  # 1e-5
-                                       # xvalue_accuracy=1e-5,  # 1e-5
-                                       # table_spacing=1.,  # 1
-                                       )
-            # padfactor?
-            pad_factor = 0.25
-            oversampling = 0.5
-            self.model = Optical(scale_optical_lambda=2.0, template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], gsparams=gsparams, pad_factor=pad_factor, oversampling=oversampling, **model_kwargs)
         elif engine == 'galsim':
             self.model = Optical(template=template, pupil_plane_im=self.kwargs['pupil_plane_im'], **model_kwargs)
-        elif engine == 'donutlib_fast':
-            makedonut_dict = {'nbin': 192,  # 256
-                              'nPixels': 24,  # 32
-                              'pixelOverSample': 8,  # 8
-                              'scaleFactor': 1,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
-        elif engine == 'donutlib_fast_scalefactor':
-            makedonut_dict = {'nbin': 96,  # 256
-                              'nPixels': 24,  # 32
-                              'pixelOverSample': 4,  # 8
-                              'scaleFactor': 2,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
-        elif engine == 'donutlib':
-            makedonut_dict = {'nbin': 384,  # 256
-                              'nPixels': 24,  # 32
-                              'pixelOverSample': 16,  # 8
-                              'scaleFactor': 1,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
-        elif engine == 'donutlib_again':
-            makedonut_dict = {'nbin': 384,  # 256
-                              'nPixels': 24,  # 32
-                              'pixelOverSample': 16,  # 8
-                              'scaleFactor': 1,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
-        elif engine == 'donutlib_scalefactor':
-            makedonut_dict = {'nbin': 384,  # 256
-                              'nPixels': 24,  # 32
-                              'pixelOverSample': 16,  # 8
-                              'scaleFactor': 2,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
-        elif engine == 'donutlib_old':
-            makedonut_dict = {'nbin': 256,  # 256
-                              'nPixels': 32,  # 32
-                              'pixelOverSample': 8,  # 8
-                              'scaleFactor': 1,  # 1
-                              'randomFlag': False,
-                              'iTelescope': self._templates.index(template),
-                              'nZernikeTerms': 11,
-                              }
-            self.model = DonutEngine(**makedonut_dict)
         else:
             raise Exception('Invalid engine! {0}'.format(engine))
 
-    def _measure_shapes(self, stars, logger=None, reject=False):
-        """Work around the gsobject to measure shapes. Returns stars
+    def _measure_shapes(self, stars, logger=None):
+        """Work around the gsobject to measure shapes. Returns array of shapes
         """
         stars_out = []
         # TODO: It would be nice if I could copy the stars so that the new list is not the same as the old...
         for star_i, star in enumerate(stars):
             if logger:
-                logger.info("Measuring shape of star {0}".format(star_i))
-                logger.info(star.data.properties)
+                logger.debug("Measuring shape of star {0}".format(star_i))
+                logger.debug(star.data.properties)
             star.fit.params = None
+            # # we also need to pop the hsm parameter because we are using the same stars, so it is getting confused with wrong parameters -- I htink especially flux (since input stars have fluxes like 100000 and our psfs have flux like 1)
+            # if 'hsm' in star.data.properties:
+            #     _ = star.data.properties.pop('hsm')
             try:
                 star_out = self.model_comparer.fit(star, logger=logger)
                 if logger:
-                    logger.info(star_out.fit.params)
+                    logger.debug(star_out.fit.params)
                 stars_out.append(star_out)
             except:
                 if logger:
-                    logger.info("Star rejected!")
-                if not reject:
-                    # not supposed to be rejecting stars...
-                    star_out = self.model_comparer.fit(star, logger=logger)
-                    if logger:
-                        logger.info(star_out.fit.params)
-                    stars_out.append(star_out)
-        return stars_out
+                    logger.debug("Star failed moment parameter; setting shapes to nan!")
+                # put in a faux params
+                star.fit.params = np.array([np.nan, np.nan, np.nan])
+                stars_out.append(star)
+                # # not supposed to be rejecting stars...
+                # star_out = self.model_comparer.fit(star, logger=logger)
+                # if logger:
+                #     logger.debug(star_out.fit.params)
+                # stars_out.append(star_out)
+
+        shapes = np.array([star.fit.params for star in stars_out])
+        shapes[:, 1:] = shapes[:,0][:, None] * shapes[:, 1:]
+
+        return shapes
 
     def fit(self, stars, wcs, pointing,
             chisq_threshold=0.1, max_iterations=300, skip_fit=False, logger=None):
@@ -331,13 +264,16 @@ class DECamWavefrontPSF(PSF):
         :param logger:          A logger object for logging debug info. [default: None]
         """
         if logger:
-            logger.info("Start fitting DECAMWavefrontPSF using %s stars", len(stars))
+            logger.info("Start fitting DECamWavefrontPSF using %s stars", len(stars))
         from iminuit import Minuit
 
         self.stars = stars
         if self.kwargs['max_stars'] and self.kwargs['max_stars'] < len(self.stars):
             choice = np.random.choice(len(self.stars), self.kwargs['max_stars'])
+            self.all_stars = stars
             self.stars = [stars[i] for i in choice]
+            if logger:
+                logger.info('Cutting from {0} to {1} stars'.format(len(self.all_stars), len(self.stars)))
         self.wcs = wcs
         self.pointing = pointing
 
@@ -346,10 +282,14 @@ class DECamWavefrontPSF(PSF):
         # get the moments of the stars for comparison
         if logger:
             logger.info("Start measuring the shapes")
-        self._stars = self._measure_shapes(self.stars, logger=logger, reject=True)
-        self._shapes = np.array([star.fit.params for star in self._stars])
-        # convert shapes to unnormalized second moments
-        self._shapes[:,1:] = self._shapes[:,0][:, None] * self._shapes[:,1:]
+        self._shapes = self._measure_shapes(self.stars, logger=logger)
+        # cut more stars if they fail here
+        indx = ~np.any(self._shapes != self._shapes, axis=1)
+        # cut stars!
+        if logger:
+            logger.info("Cutting {0} stars out of {1}".format(sum(~indx), len(indx)))
+        self._shapes = self._shapes[indx]
+        self.stars = [star for star, ind in zip(self.stars, indx) if ind]
 
         if logger:
             logger.info("Creating minuit object")
@@ -367,13 +307,21 @@ class DECamWavefrontPSF(PSF):
         self._fitarg = self._minuit.fitarg
         # update params to best values
         if logger:
-            logger.info("Fitargs are {0}".format(self._fitarg))
-            logger.info("Minuit values are {0}".format(self._minuit.values))
+            logger.info("Minuit Fitargs are {0}".format(self._fitarg))
+            logger.info("Minuit Fitargs:\n*****\n")
+            for key in self._fitarg:
+                logger.info("{0}: {1}\n".format(key, self._fitarg[key]))
+            logger.info("Minuit Minuit Values are {0}".format(self._minuit.values))
+            logger.info("Minuit Minuit Values:\n*****\n")
+            for key in self._minuit.values:
+                logger.info("{0}: {1}\n".format(key, self._minuit.values[key]))
         self.update_psf_params(**self._minuit.values)
         # save params and errors to the kwargs
         self.kwargs['minuit'].update(self._fitarg)
         if logger:
-            logger.info("Minuit kwargs are now: {0}".format(self.kwargs['minuit']))
+            logger.info("Minuit kwargs are now:\n*****\n")
+            for key in self.kwargs['minuit']:
+                logger.info("{0}: {1}\n".format(key, self.kwargs['minuit'][key]))
 
     def update_psf_params(self,
                           r0=np.nan, g1=np.nan, g2=np.nan,
@@ -387,14 +335,17 @@ class DECamWavefrontPSF(PSF):
                           z11d=np.nan, z11x=np.nan, z11y=np.nan,
                           logger=None, **kwargs):
         # update model
-        if r0 == r0:
+        old_r0 = self.model.kolmogorov_kwargs['r0']
+        old_g1 = self.model.g1
+        old_g2 = self.model.g2
+        if not self.minuit_kwargs['fix_r0'] and r0 == r0:
             self.model.kolmogorov_kwargs['r0'] = r0
-        if g1 == g1:
+        if not self.minuit_kwargs['fix_g1'] and g1 == g1:
             self.model.g1 = g1
-        if g2 == g2:
+        if not self.minuit_kwargs['fix_g2'] and g2 == g2:
             self.model.g2 = g2
         # update the misalignment
-        misalignment = np.array([
+        misalignment_arr = np.array([
                   [z04d, z04x, z04y],
                   [z05d, z05x, z05y],
                   [z06d, z06x, z06y],
@@ -405,12 +356,31 @@ class DECamWavefrontPSF(PSF):
                   [z11d, z11x, z11y],
                   ])
         old_misalignment = self.interp.misalignment
-        misalignment = np.where(misalignment == misalignment, misalignment, old_misalignment)
+        misalignment = np.where(self._misalignment_fix, old_misalignment, misalignment_arr)
+        misalignment = np.where(misalignment != misalignment, old_misalignment, misalignment)
         self.interp.misalignment = misalignment
 
         if logger:
-            logger.info('Old misalignment is {0}'.format(old_misalignment))
-            logger.info('New misalignment is {0}'.format(misalignment))
+            misalignment_print = np.array([
+                      [r0, g1, g2],
+                      [z04d, z04x, z04y],
+                      [z05d, z05x, z05y],
+                      [z06d, z06x, z06y],
+                      [z07d, z07x, z07y],
+                      [z08d, z08x, z08y],
+                      [z09d, z09x, z09y],
+                      [z10d, z10x, z10y],
+                      [z11d, z11x, z11y],
+                      ])
+            try:
+                old_misalignment_print = np.vstack((
+                    np.array([[old_r0, old_g1, old_g2]]),
+                    old_misalignment))
+                logger.debug('New - Old misalignment is \n{0}'.format(misalignment_print - old_misalignment_print))
+                logger.debug('New misalignment is \n{0}'.format(misalignment_print))
+            except:
+                # old misalignment could be None on first iteration
+                logger.debug('New misalignment is \n{0}'.format(misalignment_print))
 
     def _fit_func(self,
                   r0, g1, g2,
@@ -439,34 +409,49 @@ class DECamWavefrontPSF(PSF):
                                )
 
         # get shapes
-        for ith, star in enumerate(self._stars):
-            star_out = self.drawStar(star)
-            # save star
-        shapes = np.array([star.fit.params for star in self._measure_shapes(self.drawStarList(self._stars), logger=logger, reject=False)])
-        shapes[:, 1:] = shapes[:,0][:, None] * shapes[:, 1:]
+
+        shapes = self._measure_shapes(self.drawStarList(self.stars),)# logger=logger)
 
         # calculate chisq
-        # TODO: are there any errors from the shape measurements I could put in?
-        chi2 = np.sum(np.square((shapes - self._shapes) / self.kwargs['error_estimate']), axis=0)
-        dof = shapes.size
-        if self._n_iter % 10 == 0 and self.kwargs['verbose']:
-            print('\n',
-                    '***************************************\n',
-                    'time\t {0:.3e}\t ncalls \t {1}\n'.format(time() - self._time, self._n_iter),
-                    'size\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(r0, g1, g2),
-                    'z4\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z04d, z04x, z04y),
-                    'z5\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z05d, z05x, z05y),
-                    'z6\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z06d, z06x, z06y),
-                    'z7\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z07d, z07x, z07y),
-                    'z8\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z08d, z08x, z08y),
-                    'z9\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z09d, z09x, z09y),
-                    'z10\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z10d, z10x, z10y),
-                    'z11\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(z11d, z11x, z11y),
-                    'chi2\t {0:.3e}\t {1:.3e}\t {2:.3e}\n'.format(*(chi2 / dof)),
-                    '***************************************',
-                    )
+        # chi2 = np.sum(np.square((shapes - self._shapes) / self.kwargs['error_estimate']), axis=0)
+        # dof = shapes.size
+        chi2_l = np.square((shapes - self._shapes) / self.kwargs['error_estimate'])
+        indx = ~np.any(chi2_l != chi2_l, axis=1)
+        chi2 = np.sum(chi2_l[indx], axis=0)
+        dof = sum(indx)
+        if self.kwargs['verbose']:
+            log = ['\n',
+                    '* *********************************************** *\n',
+                    '* time\t {0:.3e}\t ncalls \t {1} \n'.format(time() - self._time, self._n_iter),
+                    '* *********************************************** *\n',
+                    '* size\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(r0, g1, g2),
+                    '* z4\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z04d, z04x, z04y),
+                    '* z5\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z05d, z05x, z05y),
+                    '* z6\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z06d, z06x, z06y),
+                    '* z7\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z07d, z07x, z07y),
+                    '* z8\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z08d, z08x, z08y),
+                    '* z9\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z09d, z09x, z09y),
+                    '* z10\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z10d, z10x, z10y),
+                    '* z11\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(z11d, z11x, z11y),
+                    '* chi2\t {0:.3e}\t {1:.3e}\t {2:.3e} *\n'.format(*(chi2 / dof)),
+                    '* *********************************************** *',
+                    ]
+            if self._n_iter % 10 == 0:
+                print(*log)
+            if logger:
+                logger.debug(''.join(log))
         self._n_iter += 1
-        return np.sum(self.weights * chi2) * 1. / dof / np.sum(self.weights)
+        chi2_sum = np.sum(self.weights * chi2) * 1. / dof / np.sum(self.weights)
+        if logger:
+            if sum(dof) != len(dof):
+                logger.debug('Warning! We are using {0} stars out of {1} stars'.format(sum(dof), len(dof)))
+            logger.debug('chi2 array:')
+            logger.debug(chi2_sum)
+            logger.debug(chi2)
+            logger.debug(self.weights * chi2)
+            logger.debug(dof * np.sum(self.weights))
+            logger.debug(chi2_l)
+        return chi2_sum
 
     def drawStarList(self, stars):
         """Generate PSF images for given stars.

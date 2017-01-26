@@ -18,6 +18,8 @@ import piff
 import os
 import fitsio
 
+from piff.util import hsm
+
 def test_init():
     print('test init')
     # make sure we can init with defaults
@@ -70,6 +72,21 @@ def test_kolmogorov():
 
     chi2 = np.std((star.image - star2.image).array)
     assert chi2 != 0,'chi2 is zero!?'
+
+    # # plot some stuff
+    # import matplotlib
+    # matplotlib.use('Agg')
+    # import matplotlib.pyplot as plt
+    # sizes = []
+    # r0s = [0.002, 0.005, 0.01, 0.02, 0.1, 0.2, 0.3, 0.4]
+    # for r0 in r0s:
+    #     model = piff.Optical(r0=r0, template='des')
+    #     star = model.draw(star)
+    #     flux, cenu, cenv, size, g1, g2, flag = hsm(star)
+    #     sizes.append(size)
+    #     print('{0:.2e}: {1:.2e}, {2:.2e}, {3:.2e} {4:.2e}'.format(r0, size, g1, g2, flux))
+    # plt.plot(r0s, sizes)
+    # plt.savefig('r0.png')
 
 def test_shearing():
     print('test shearing')
@@ -175,10 +192,10 @@ def make_empty_star(icen=500, jcen=700, chipnum=28, params=None,
     return star
 
 if __name__ == '__main__':
-    test_init()
-    test_optical()
-    test_pupil_im(pupil_plane_im='optics_test/DECam_pupil_128.fits')
-    test_pupil_im(pupil_plane_im='optics_test/DECam_pupil_512.fits')
+    # test_init()
+    # test_optical()
+    # test_pupil_im(pupil_plane_im='optics_test/DECam_pupil_128.fits')
+    # test_pupil_im(pupil_plane_im='optics_test/DECam_pupil_512.fits')
     test_kolmogorov()
     test_shearing()
     test_gaussian()
