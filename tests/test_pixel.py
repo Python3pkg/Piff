@@ -19,8 +19,10 @@ import galsim
 import yaml
 import subprocess
 
-from piff_test_helper import get_script_name
+from piff_test_helper import get_script_name, timer
 
+
+@timer
 def make_gaussian_data(sigma, u0, v0, flux, noise=0., du=1., fpu=0., fpv=0., nside=32,
                        nom_u0=0., nom_v0=0., rng=None):
     """Make a Star instance filled with a Gaussian profile
@@ -54,6 +56,7 @@ def make_gaussian_data(sigma, u0, v0, flux, noise=0., du=1., fpu=0., fpv=0., nsi
     return star
 
 
+@timer
 def test_simplest():
     """Fit a PSF to noiseless Gaussian data at same sampling
     """
@@ -90,6 +93,7 @@ def test_simplest():
     np.testing.assert_almost_equal(star2.image.array, s.image.array, decimal=7)
 
 
+@timer
 def test_oversample():
     """Fit to oversampled data, decentered PSF.
     """
@@ -121,6 +125,7 @@ def test_oversample():
     np.testing.assert_almost_equal(star2.image.array/peak, s.image.array/peak, decimal=3)
 
 
+@timer
 def test_center():
     """Fit with centroid free and PSF center constrained to an initially mis-registered PSF.
     """
@@ -153,6 +158,7 @@ def test_center():
                                    decimal=2)
 
 
+@timer
 def test_interp():
     """First test of use with interpolator.  Make a bunch of noisy
     versions of the same PSF, interpolate them with constant interp
@@ -170,7 +176,6 @@ def test_interp():
     positions = np.linspace(0.,1.,10.)
     influx = 150.
     stars = []
-    np.random.seed(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         for v in positions:
@@ -218,6 +223,7 @@ def test_interp():
     np.testing.assert_almost_equal(s1.image.array/peak, s0.image.array/peak, decimal=2)
 
 
+@timer
 def test_missing():
     """Next: fit mean PSF to multiple images, with missing pixels.
     """
@@ -230,7 +236,7 @@ def test_missing():
     positions = np.linspace(0.,1.,4)
     influx = 150.
     stars = []
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         for v in positions:
@@ -238,7 +244,7 @@ def test_missing():
             s = make_gaussian_data(1.0, 0., 0., influx, noise=0.1, du=0.5, fpu=u, fpv=v, rng=rng)
             s = mod.initialize(s)
             # Kill 10% of each star's pixels
-            bad = np.random.rand(*s.image.array.shape) < 0.1
+            bad = np_rng.rand(*s.image.array.shape) < 0.1
             s.weight.array[bad] = 0.
             s.image.array[bad] = -999.
             s = mod.reflux(s, fit_center=False) # Start with a sensible flux
@@ -298,6 +304,7 @@ def test_missing():
         np.testing.assert_almost_equal(s1.image.array/peak, s0.image.array/peak, decimal=1)
 
 
+@timer
 def test_gradient():
     """Next: fit spatially-varying PSF to multiple images.
     """
@@ -314,7 +321,6 @@ def test_gradient():
     positions = np.linspace(0.,1.,4)
     influx = 150.
     stars = []
-    np.random.seed(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         # Put gradient in pixel size
@@ -371,6 +377,7 @@ def test_gradient():
     np.testing.assert_almost_equal(s1.image.array/peak, s0.image.array/peak, decimal=1)
 
 
+@timer
 def test_undersamp():
     """Next: fit PSF to undersampled, dithered data with fixed centroids
     ***Doesn't work well! Need to work on the SV pruning***
@@ -389,12 +396,12 @@ def test_undersamp():
     positions = np.linspace(0.,1.,4)
     influx = 150.
     stars = []
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         for v in positions:
             # Dither centers by 1 pixel
-            phase = (0.5 - np.random.rand(2))*du
+            phase = (0.5 - np_rng.rand(2))*du
             if u==0. and v==0.:
                 phase=(0.,0.)
             s = make_gaussian_data(1.0, 0., 0., influx, noise=0.1, du=du, fpu=u, fpv=v,
@@ -448,6 +455,7 @@ def test_undersamp():
     np.testing.assert_almost_equal(s1.image.array/peak, s0.image.array/peak, decimal=1)
 
 
+@timer
 def test_undersamp_shift():
     """Next: fit PSF to undersampled, dithered data with variable centroids,
     this time using chisq() and summing alpha,beta instead of fit() per star
@@ -470,13 +478,13 @@ def test_undersamp_shift():
     # Draw stars on a 2d grid of "focal plane" with 0<=u,v<=1
     positions = np.linspace(0.,1.,8)
     stars = []
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         for v in positions:
             # Nominal star centers move by +-1/2 pix, real centers another 1/2 pix
-            phase1 = (0.5 - np.random.rand(2))*du
-            phase2 = (0.5 - np.random.rand(2))*du
+            phase1 = (0.5 - np_rng.rand(2))*du
+            phase2 = (0.5 - np_rng.rand(2))*du
             if u==0. and v==0.:
                 phase1 = phase2 =(0.,0.)
             s = make_gaussian_data(1.0, phase2[0], phase2[1], influx, noise=0.1, du=du,
@@ -544,13 +552,13 @@ def do_undersamp_drift(fit_centers=False):
     # Draw stars on a 2d grid of "focal plane" with 0<=u,v<=1
     positions = np.linspace(0.,1.,8)
     stars = []
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     rng = galsim.BaseDeviate(1234)
     for u in positions:
         for v in positions:
             # Nominal star centers move by +-1/2 pix
-            phase1 = (0.5 - np.random.rand(2))*du
-            phase2 = (0.5 - np.random.rand(2))*du
+            phase1 = (0.5 - np_rng.rand(2))*du
+            phase2 = (0.5 - np_rng.rand(2))*du
             if u==0. and v==0.:
                 phase1 = phase2 =(0.,0.)
             # PSF center will drift with v; size drifts with u
@@ -593,10 +601,14 @@ def do_undersamp_drift(fit_centers=False):
     peak = np.max(np.abs(s0.image.array))
     np.testing.assert_almost_equal(s1.image.array/peak, s0.image.array/peak, decimal=1)
 
+
+@timer
 def test_undersamp_drift():
     do_undersamp_drift(True)
     do_undersamp_drift(False)
 
+
+@timer
 def test_single_image():
     """Test the whole process with a single image.
 
@@ -604,7 +616,7 @@ def test_single_image():
     """
     import os
     import fitsio
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
 
     # Make the image
     image = galsim.Image(2048, 2048, scale=0.2)
@@ -615,12 +627,12 @@ def test_single_image():
     x_list, y_list = np.meshgrid(xvals, yvals)
     x_list = x_list.flatten()
     y_list = y_list.flatten()
-    x_list = x_list + (np.random.rand(len(x_list)) - 0.5)
-    y_list = y_list + (np.random.rand(len(x_list)) - 0.5)
+    x_list = x_list + (np_rng.rand(len(x_list)) - 0.5)
+    y_list = y_list + (np_rng.rand(len(x_list)) - 0.5)
     print('x_list = ',x_list)
     print('y_list = ',y_list)
     # Range of fluxes from 100 to 15000
-    flux_list = 100. * np.exp(5. * np.random.rand(len(x_list)))
+    flux_list = 100. * np.exp(5. * np_rng.rand(len(x_list)))
     print('fluxes range from ',np.min(flux_list),np.max(flux_list))
 
     # Draw a Moffat PSF at each location on the image.
@@ -781,6 +793,7 @@ def test_single_image():
         test_star = psf.drawStar(target_star)
         np.testing.assert_almost_equal(test_star.image.array, test_im.array, decimal=3)
 
+@timer
 def test_des_image():
     """Test the whole process with a DES CCD.
     """
@@ -802,7 +815,6 @@ def test_des_image():
         nstars = 25
         scale = 0.2
         size = 21
-    np.random.seed(1234)
     stamp_size = 51
 
     # The configuration dict with the right input fields for the file we're using.

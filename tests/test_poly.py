@@ -16,12 +16,12 @@ from __future__ import print_function
 import numpy as np
 import piff
 
-from piff_test_helper import get_script_name
+from piff_test_helper import timer
 
 PolynomialsTypes = piff.polynomial_types.keys()
 
 
-
+@timer
 def test_poly_indexing():
     # Some indexing tests for a polynomial up to order 3
     N = 3
@@ -53,7 +53,8 @@ def test_poly_indexing():
     assert interp.nvariables[0]==10
 
     # check the packing then unpacking a
-    packed = np.random.uniform(size=interp.nvariables[0])
+    np_rng = np.random.RandomState(1234)
+    packed = np_rng.uniform(size=interp.nvariables[0])
     unpacked = interp._unpack_coefficients(0,packed)
     packed_test = interp._pack_coefficients(0,unpacked)
 
@@ -82,6 +83,8 @@ def test_poly_indexing():
     unpacked_test_2 = interp._unpack_coefficients(0,packed_test_2)
     np.testing.assert_array_equal(unpacked_test_2,unpacked_test)
 
+
+@timer
 def test_poly_mean():
     # Zero'th order polynomial fitting should be pretty trivial, just
     # the same as the mean fitting. So much of this code is just taken from
@@ -92,13 +95,14 @@ def test_poly_mean():
     nstars = 100
 
     # Choose some random values of star parameters
-    vectors = [ np.random.random(size=nparam) for i in range(nstars) ]
+    np_rng = np.random.RandomState(1234)
+    vectors = [ np_rng.random_sample(size=nparam) for i in range(nstars) ]
 
     # take the mean of them. Our curve fit should be able to reproduce this.
     mean = np.mean(vectors, axis=0)
 
     # Choose some random positions in the field.
-    data = [ piff.Star.makeTarget(u=np.random.random()*10, v=np.random.random()*10).data
+    data = [ piff.Star.makeTarget(u=np_rng.random_sample()*10, v=np_rng.random_sample()*10).data
              for i in range(nstars) ]
     fit = [ piff.StarFit(v) for v in vectors ]
     stars = [ piff.Star(d, f) for d,f in zip(data, fit) ]
@@ -117,7 +121,7 @@ def test_poly_mean():
     # We also expect that if we interpolate to any point we just
     # get the mean as well
     for i in range(30):
-        target = piff.Star.makeTarget(u=np.random.random()*10, v=np.random.random()*10)
+        target = piff.Star.makeTarget(u=np_rng.random_sample()*10, v=np_rng.random_sample()*10)
         target = interp.interpolate(target)
         np.testing.assert_almost_equal(target.fit.params, mean)
 
@@ -139,11 +143,12 @@ def test_poly_mean():
     np.testing.assert_almost_equal(target.fit.params, mean)
 
 
+@timer
 def sub_poly_linear(type1):
     # Now lets do something more interesting - test a linear model.
     # with no noise this should fit really well, though again not
     # numerically perfectly.
-    np.random.seed(12834)
+    np_rng = np.random.RandomState(1234)
     nparam = 3
     N = 1
     nstars=50
@@ -152,14 +157,14 @@ def sub_poly_linear(type1):
     X = 10.0 # size of the field
     Y = 10.0
 
-    pos = [ (np.random.random()*X, np.random.random()*Y)
+    pos = [ (np_rng.random_sample()*X, np_rng.random_sample()*Y)
             for i in range(nstars) ]
 
     # Let's make a function that is linear just as a function of one parameter
     # These are the linear fit parameters for each parameter in turn
-    m1 = np.random.uniform(size=nparam)
-    m2 = np.random.uniform(size=nparam)
-    c = np.random.uniform(size=nparam)
+    m1 = np_rng.uniform(size=nparam)
+    m2 = np_rng.uniform(size=nparam)
+    c = np_rng.uniform(size=nparam)
     def linear_func(pos):
         u = pos[0]
         v = pos[1]
@@ -177,7 +182,7 @@ def sub_poly_linear(type1):
 
     # Check that the interpolation recovers the desired function
     for i in range(30):
-        p=(np.random.random()*X, np.random.random()*Y)
+        p=(np_rng.random_sample()*X, np_rng.random_sample()*Y)
         target = piff.Star.makeTarget(u=p[0], v=p[1])
         target = interp.interpolate(target)
         np.testing.assert_almost_equal(linear_func(p), target.fit.params)
@@ -195,14 +200,16 @@ def sub_poly_linear(type1):
     np.testing.assert_almost_equal(linear_func(p), target.fit.params)
 
 
+@timer
 def test_poly_linear():
     for poly_type in PolynomialsTypes:
         sub_poly_linear(poly_type)
 
+
 def sub_poly_quadratic(type1):
     # This is basically the same as linear but with
     # quadratic variation
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     nparam = 3
     N = 2
     nstars=50
@@ -211,16 +218,16 @@ def sub_poly_quadratic(type1):
     X = 10.0 # size of the field
     Y = 10.0
 
-    pos = [ (np.random.random()*X, np.random.random()*Y)
+    pos = [ (np_rng.random_sample()*X, np_rng.random_sample()*Y)
             for i in range(nstars) ]
 
 
     # Let's make a function that is linear just as a function of one parameter
     # These are the linear fit parameters for each parameter in turn
-    m1 = np.random.uniform(size=nparam)
-    m2 = np.random.uniform(size=nparam)
-    q1 = np.random.uniform(size=nparam)
-    c = np.random.uniform(size=nparam)
+    m1 = np_rng.uniform(size=nparam)
+    m2 = np_rng.uniform(size=nparam)
+    q1 = np_rng.uniform(size=nparam)
+    c = np_rng.uniform(size=nparam)
     def quadratic_func(pos):
         u = pos[0]
         v = pos[1]
@@ -238,7 +245,7 @@ def sub_poly_quadratic(type1):
 
     # Check that the interpolation recovers the desired function
     for i in range(30):
-        p=(np.random.random()*X, np.random.random()*Y)
+        p=(np_rng.random_sample()*X, np_rng.random_sample()*Y)
         target = piff.Star.makeTarget(u=p[0], v=p[1])
         target = interp.interpolate(target)
         np.testing.assert_almost_equal(quadratic_func(p), target.fit.params)
@@ -256,27 +263,29 @@ def sub_poly_quadratic(type1):
     np.testing.assert_almost_equal(quadratic_func(p), target.fit.params)
 
 
+@timer
 def test_poly_quadratic():
     for poly_type in PolynomialsTypes:
         sub_poly_quadratic(poly_type)
 
 
+@timer
 def test_poly_guess():
     # test that our initial guess gives us a flat function given
     # by the mean
-    np.random.seed(12434)
+    np_rng = np.random.RandomState(1234)
     N = 2
     X = 10.0
     Y = 10.0
     nstars=50
     nparam = 10
     interp = piff.Polynomial(N)
-    pos = [ (np.random.random()*X, np.random.random()*Y)
+    pos = [ (np_rng.random_sample()*X, np_rng.random_sample()*Y)
             for i in range(nstars) ]
 
     interp._setup_indices(nparam)
     for i in range(nparam):
-        param = np.random.random(size=nstars)
+        param = np_rng.random_sample(size=nstars)
         p0 = interp._initialGuess(pos, param, i)
         mu = param.mean()
         assert np.isclose(p0[0,0],mu)
@@ -291,7 +300,7 @@ def poly_load_save_sub(type1, type2, fname):
     # Test that we can serialize and deserialize a polynomial
     # interpolator correctly.  Copying all this stuff from above:
 
-    np.random.seed(12434)
+    np_rng = np.random.RandomState(1234)
     nparam = 3
     nstars=50
     # Use three different sizes to test everything
@@ -300,15 +309,15 @@ def poly_load_save_sub(type1, type2, fname):
     X = 10.0 # size of the field
     Y = 10.0
 
-    pos = [ (np.random.random()*X, np.random.random()*Y)
+    pos = [ (np_rng.random_sample()*X, np_rng.random_sample()*Y)
             for i in range(nstars) ]
 
     # Let's make a function that is linear just as a function of one parameter
     # These are the linear fit parameters for each parameter in turn
-    m1 = np.random.uniform(size=nparam)
-    m2 = np.random.uniform(size=nparam)
-    q1 = np.random.uniform(size=nparam)
-    c = np.random.uniform(size=nparam)
+    m1 = np_rng.uniform(size=nparam)
+    m2 = np_rng.uniform(size=nparam)
+    q1 = np_rng.uniform(size=nparam)
+    c = np_rng.uniform(size=nparam)
 
     def quadratic_func(pos):
         u = pos[0]
@@ -346,27 +355,29 @@ def poly_load_save_sub(type1, type2, fname):
     # Check that the old and new interpolators generate the same
     # value
     for i in range(30):
-        p=(np.random.random()*X, np.random.random()*Y)
+        p=(np_rng.random_sample()*X, np_rng.random_sample()*Y)
         target = piff.Star.makeTarget(u=p[0], v=p[1])
         target1 = interp.interpolate(target)
         target2 = interp.interpolate(target)
         np.testing.assert_almost_equal(target1.fit.params, target2.fit.params)
 
+
+@timer
 def test_poly_raise():
     # Test that we can serialize and deserialize a polynomial
     # interpolator correctly.  Copying all this stuff from above:
 
-    np.random.seed(12434)
+    np_rng = np.random.RandomState(1234)
     nparam = 3
     nstars = 50
 
     # Use three different sizes to test everything
     orders = [1,2,3]
     interp = piff.Polynomial(orders=orders)
-    pos = [ (np.random.random()*10, np.random.random()*10)
+    pos = [ (np_rng.random_sample()*10, np_rng.random_sample()*10)
             for i in range(nstars) ]
     #use the wrong number of parameters here so that we raise an error
-    vectors = [ np.random.random(size=nparam+1) for i in range(nstars) ]
+    vectors = [ np_rng.random_sample(size=nparam+1) for i in range(nstars) ]
     data = [ piff.Star.makeTarget(u=p[0], v=p[1]).data for p in pos ]
     fit = [ piff.StarFit(v) for v in vectors ]
     stars = [ piff.Star(d, f) for d,f in zip(data, fit) ]
@@ -376,15 +387,19 @@ def test_poly_raise():
         pass
 
 
+@timer
 def test_poly_load_save():
     for poly_type in PolynomialsTypes:
         poly_load_save_sub(poly_type, poly_type, 'poly_test_load_save.fits')
 
+
+@timer
 def test_poly_load_err():
     for poly_type1 in PolynomialsTypes:
         for poly_type2 in PolynomialsTypes:
             if poly_type1!=poly_type2:
                 poly_load_save_sub(poly_type1, poly_type2, 'poly_test_load_err.fits')
+
 
 if __name__ == '__main__':
     test_poly_indexing()

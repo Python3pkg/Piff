@@ -15,11 +15,14 @@
 from __future__ import print_function
 import galsim
 import numpy as np
-import math
 import fitsio
 import os
 import piff
 
+from piff_test_helper import timer
+
+
+@timer
 def test_init():
     """Test the basic initialization of a StarData object.
     """
@@ -39,7 +42,7 @@ def test_init():
 
     # Update the bounds so the image is centered at icen, jcen.
     # Note: this also updates the wcs, so u,v at the center is still field_pos
-    image.setCenter(icen, jcen)  
+    image.setCenter(icen, jcen)
 
     # Just draw something so it has non-trivial pixel values.
     galsim.Gaussian(sigma=5).drawImage(image)
@@ -101,6 +104,7 @@ def test_init():
     print("Passed basic initialization of StarData")
 
 
+@timer
 def test_euclidean():
     """Test a slightly more complicated WCS and an object not centered at the center of the image.
     """
@@ -131,7 +135,7 @@ def test_euclidean():
     print('field pos (u,v) = ',field_pos)
     print('origin of ps image is at u,v = ',image.wcs.toWorld(image.origin()))
     print('center of ps image is at u,v = ',image.wcs.toWorld(image.center()))
-    
+
     # Just draw something so it has non-trivial pixel values.
     galsim.Gaussian(sigma=5).drawImage(image)
     weight += image
@@ -168,6 +172,7 @@ def test_euclidean():
     print("Passed tests of StarData with EuclideanWCS")
 
 
+@timer
 def test_celestial():
     """Test using a (realistic) CelestialWCS for the main image.
     """
@@ -234,22 +239,23 @@ def test_celestial():
     print("Passed tests of StarData with CelestialWCS")
 
 
+@timer
 def test_io():
-    np.random.seed(1234)
+    np_rng = np.random.RandomState(1234)
     nstars = 100
-    x = np.random.random(nstars) * 2048.
-    y = np.random.random(nstars) * 2048.
-    flux = np.random.random(nstars) * 1000.
-    cenx = 2.*np.random.random(nstars) - 1.
-    ceny = 2.*np.random.random(nstars) - 1.
-    color_ri = np.random.random(nstars) * 1.4 - 0.8
-    color_iz = np.random.random(nstars) * 1.9 - 0.6
+    x = np_rng.random_sample(nstars) * 2048.
+    y = np_rng.random_sample(nstars) * 2048.
+    flux = np_rng.random_sample(nstars) * 1000.
+    cenx = 2.*np_rng.random_sample(nstars) - 1.
+    ceny = 2.*np_rng.random_sample(nstars) - 1.
+    color_ri = np_rng.random_sample(nstars) * 1.4 - 0.8
+    color_iz = np_rng.random_sample(nstars) * 1.9 - 0.6
     stars = [ piff.Star.makeTarget(x=x[i], y=y[i], scale=0.26, color_ri=color_ri[i],
                                    color_iz=color_iz[i]).withFlux(flux[i]) for i in range(nstars) ]
     for star in stars:
-        star.data.image.array[:] = np.random.random(star.data.image.array.shape)
+        star.data.image.array[:] = np_rng.random_sample(star.data.image.array.shape)
         star.data.weight = star.data.image.copy()
-        star.data.weight.array[:] = np.random.random(star.data.image.array.shape)
+        star.data.weight.array[:] = np_rng.random_sample(star.data.image.array.shape)
 
     file_name = os.path.join('output','star_io.fits')
     print('Writing stars to ',file_name)

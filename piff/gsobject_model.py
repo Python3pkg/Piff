@@ -18,7 +18,7 @@
 
 import numpy as np
 
-from .model import Model
+from .model import Model, ModelFitError
 from .star import Star, StarFit, StarData
 from .util import hsm
 
@@ -71,7 +71,7 @@ class GSObjectModel(Model):
             if logger:
                 logger.debug('Error with star moment_fit. Values are:')
                 logger.debug('{0:.2e} {1:.2e} {2:.2e} {3:.2e} {4:.2e} {5:.2e} {6:.2e}'.format(ref_flux, ref_cenu, ref_cenv, ref_size, ref_g1, ref_g2, flag))
-            raise RuntimeError("Error calculating model moments for this star.")
+            raise ModelFitError("Error calculating model moments for this star.")
 
         param_flux = star.fit.flux
         if self._force_model_center:
