@@ -12,7 +12,7 @@
 #    this list of conditions and the disclaimer given in the documentation
 #    and/or other materials provided with the distribution.
 
-from __future__ import print_function
+
 import warnings
 import galsim
 import numpy as np
@@ -152,7 +152,7 @@ def make_polynomial_psf_params(ntrain, nvalidate, nvisualize):
     vis_data = np.recarray((nvisualize*nvisualize), dtype=star_type)
     u = v = np.linspace(0, 1, nvisualize)
     u, v = np.meshgrid(u, v)
-    for i, (u1, v1) in enumerate(zip(u.ravel(), v.ravel())):
+    for i, (u1, v1) in enumerate(list(zip(u.ravel(), v.ravel()))):
         vals = np.polynomial.chebyshev.chebval2d(u1, v1, coefs)/6  # range is [-0.5, 0.5]
         hlr = vals[0] * 0.1 + 0.35
         g1 = vals[1] * 0.1

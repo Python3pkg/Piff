@@ -16,7 +16,7 @@
 .. module:: pixelmodel
 """
 
-from __future__ import print_function
+
 import numpy as np
 
 from .model import Model

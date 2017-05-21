@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 import sys,os,glob,re
 
 try:
@@ -17,7 +17,7 @@ except ImportError:
     import distutils
     # cf. http://stackoverflow.com/questions/1612733/including-non-python-files-with-setup-py
     from distutils.command.install import INSTALL_SCHEMES
-    for scheme in INSTALL_SCHEMES.values():
+    for scheme in list(INSTALL_SCHEMES.values()):
         scheme['data'] = scheme['purelib']
     # cf. http://stackoverflow.com/questions/37350816/whats-distutils-equivalent-of-setuptools-find-packages-python
     from distutils.util import convert_path

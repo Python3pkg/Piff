@@ -18,7 +18,7 @@
 
 """
 
-from __future__ import print_function
+
 import numpy as np
 import os
 import warnings
@@ -441,7 +441,7 @@ class RhoStats(Stats):
 
                 # catch linestyles, but otherwise default to - and -- for positive and negative
                 # values
-                if 'linestyle' in kwargs.keys():
+                if 'linestyle' in list(kwargs.keys()):
                     linestyle_pos = kwargs.pop('linestyle')
                     linestyle_neg = linestyle_pos
                 else:

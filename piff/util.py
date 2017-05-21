@@ -16,7 +16,7 @@
 .. module:: util
 """
 
-from __future__ import print_function
+
 import numpy as np
 import os
 
@@ -123,7 +123,7 @@ def write_kwargs(fits, extname, kwargs):
     """
     cols = []
     dtypes = []
-    for key, value in kwargs.items():
+    for key, value in list(kwargs.items()):
         # Don't add values that are None to the table.
         if value is None:
             continue
@@ -147,7 +147,7 @@ def read_kwargs(fits, extname):
     data = fits[extname].read()
     assert len(data) == 1
     kwargs = dict([ (col, data[col][0]) for col in cols ])
-    for key,value in kwargs.items():
+    for key,value in list(kwargs.items()):
         # Convert any byte strings to a regular str
         try:
             value = str(value.decode())

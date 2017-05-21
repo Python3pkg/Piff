@@ -16,7 +16,7 @@
 .. module:: interp
 """
 
-from __future__ import print_function
+
 from .interp import Interp
 from .star import Star, StarFit
 import numpy as np

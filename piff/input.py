@@ -16,7 +16,7 @@
 .. module:: input
 """
 
-from __future__ import print_function
+
 import numpy as np
 import glob
 import os
@@ -262,7 +262,7 @@ class Input(object):
         :returns:   A dict of WCS solutions (galsim.BaseWCS instances) indexed by chipnum
         """
         wcs_list = [im.wcs for im in self.images]
-        return dict(zip(self.chipnums, wcs_list))
+        return dict(list(zip(self.chipnums, wcs_list)))
 
 
 class InputFiles(Input):
@@ -390,7 +390,7 @@ class InputFiles(Input):
 
         # Finally, if chipnums is None, we can make it the default list.
         if self.chipnums is None:
-            self.chipnums = range(len(self.image_files))
+            self.chipnums = list(range(len(self.image_files)))
             if logger:
                 logger.debug("Using default chipnums: %s",self.chipnums)
 

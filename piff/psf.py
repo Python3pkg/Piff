@@ -16,7 +16,7 @@
 .. module:: psf
 """
 
-from __future__ import print_function
+
 
 import numpy as np
 import fitsio
@@ -149,7 +149,7 @@ class PSF(object):
                 raise TypeError("Extra interpolation property %r is required"%key)
             properties = kwags.pop(key)
         if len(kwargs) != 0:
-            raise TypeError("draw got an unexpecte keyword argument %r"%kwargs.keys()[0])
+            raise TypeError("draw got an unexpecte keyword argument %r"%list(kwargs.keys())[0])
 
         image_pos = galsim.PositionD(x,y)
         world_pos = StarData.calculateFieldPos(image_pos, self.wcs[chipnum], self.pointing,
@@ -297,7 +297,7 @@ class PSF(object):
         import galsim
         import base64
         try:
-            import cPickle as pickle
+            import pickle as pickle
         except:
             import pickle
 
@@ -314,7 +314,7 @@ class PSF(object):
             dtypes = [ ('chipnums', bytes, max_len) ]
 
         # GalSim WCS objects can be serialized via pickle
-        wcs_str = [ base64.b64encode(pickle.dumps(w)) for w in self.wcs.values() ]
+        wcs_str = [ base64.b64encode(pickle.dumps(w)) for w in list(self.wcs.values()) ]
         cols.append(wcs_str)
         max_len = np.max([ len(s) for s in wcs_str ])
         dtypes.append( ('wcs_str', bytes, max_len) )
@@ -343,7 +343,7 @@ class PSF(object):
         import galsim
         import base64
         try:
-            import cPickle as pickle
+            import pickle as pickle
         except:
             import pickle
 
@@ -357,7 +357,7 @@ class PSF(object):
         wcs_str = data['wcs_str']
 
         wcs_list = [ pickle.loads(base64.b64decode(s)) for s in wcs_str ]
-        wcs = dict(zip(chipnums, wcs_list))
+        wcs = dict(list(zip(chipnums, wcs_list)))
 
         if 'ra' in fits[extname].get_colnames():
             ra = data['ra']

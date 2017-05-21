@@ -16,7 +16,7 @@
 .. module:: outliers
 """
 
-from __future__ import print_function
+
 import math
 import numpy as np
 from scipy.stats import chi2

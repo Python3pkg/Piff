@@ -49,8 +49,8 @@ def get_script_name(file_name):
         root_dir = os.path.split(test_dir)[0]
         script_dir = os.path.join(root_dir, 'scripts')
         exe_file_name = os.path.join(script_dir, file_name)
-        print('Warning: The script %s is not in the path.'%file_name)
-        print('         Using explcit path for the test:',exe_file_name)
+        print(('Warning: The script %s is not in the path.'%file_name))
+        print(('         Using explcit path for the test:',exe_file_name))
         return exe_file_name
 
 def timer(f):
@@ -64,7 +64,7 @@ def timer(f):
         result = f(*args, **kwargs)
         t1 = time.time()
         fname = repr(f).split()[1]
-        print('time for %s = %.2f' % (fname, t1-t0))
+        print(('time for %s = %.2f' % (fname, t1-t0)))
         return result
     return f2
 
@@ -78,6 +78,6 @@ def timer(f):
         result = f(*args, **kwargs)
         t1 = time.time()
         fname = repr(f).split()[1]
-        print('time for %s = %.2f' % (fname, t1-t0))
+        print(('time for %s = %.2f' % (fname, t1-t0)))
         return result
     return f2

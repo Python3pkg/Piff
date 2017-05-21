@@ -16,7 +16,7 @@
 .. module:: interp_mean
 """
 
-from __future__ import print_function
+
 
 from .interp import Interp
 from .star import Star, StarFit
@@ -99,7 +99,7 @@ class Polynomial(Interp):
         # Raise an error if this is not a valid type, in which case the lookup
         # in the line above will return None.
         if function is None:
-            valid_types = ', '.join(polynomial_types.keys())
+            valid_types = ', '.join(list(polynomial_types.keys()))
             raise ValueError(
                 "poly_type argument must be one of: {}, not {}".format(
                 valid_types, poly_type))

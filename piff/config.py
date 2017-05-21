@@ -16,7 +16,7 @@
 .. module:: config
 """
 
-from __future__ import print_function
+
 
 def setup_logger(verbose=1, log_file=None):
     """Build a logger object to use for logging progress

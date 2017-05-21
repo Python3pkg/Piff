@@ -16,7 +16,7 @@
 .. module:: model
 """
 
-from __future__ import print_function
+
 import numpy as np
 
 from .util import write_kwargs, read_kwargs

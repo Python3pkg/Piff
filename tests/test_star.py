@@ -12,7 +12,7 @@
 #    this list of conditions and the disclaimer given in the documentation
 #    and/or other materials provided with the distribution.
 
-from __future__ import print_function
+
 import galsim
 import numpy as np
 import fitsio
@@ -69,7 +69,7 @@ def test_init():
     np.testing.assert_equal(stardata.image_pos, image_pos)
 
     # Test properties access viw properties attribute or directly with []
-    for key, value in properties.items():
+    for key, value in list(properties.items()):
         np.testing.assert_equal(stardata.properties[key], value)
         np.testing.assert_equal(stardata[key], value)
 

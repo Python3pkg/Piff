@@ -124,7 +124,7 @@ class DECamInfo(object):
         # ccddict returns the chip name when given a chip number
         # so ccddict[70] = 'FN4'
         self.ccddict = {}
-        for keyi in self.infoDict.keys():
+        for keyi in list(self.infoDict.keys()):
             self.ccddict.update(
                 {self.infoDict[keyi]['CCDNUM']: keyi}
                 )

@@ -12,7 +12,7 @@
 #    this list of conditions and the disclaimer given in the documentation
 #    and/or other materials provided with the distribution.
 
-from __future__ import print_function
+
 import galsim
 import numpy as np
 import piff

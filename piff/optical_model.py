@@ -17,7 +17,7 @@
 .. module:: optical_model
 """
 
-from __future__ import print_function
+
 
 import galsim
 import fitsio
@@ -131,7 +131,7 @@ class Optical(Model):
         self.kolmogorov_kwargs = { key : self.kwargs[key] for key in self.kwargs
                                                           if key in kolmogorov_keys }
         # If lam is the only one, then remove it -- we don't have a Kolmogorov component then.
-        if self.kolmogorov_kwargs.keys() == ['lam']:
+        if list(self.kolmogorov_kwargs.keys()) == ['lam']:
             self.kolmogorov_kwargs = {}
         # Also, let r0=0 or None indicate that there is no kolmogorov component
         if 'r0' in self.kolmogorov_kwargs and not self.kolmogorov_kwargs['r0']:
